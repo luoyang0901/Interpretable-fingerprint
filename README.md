@@ -128,12 +128,6 @@ If `Combine.py` is used as the dedicated joint TextCNN(FPtand) runner, feed it t
 └── results/
 ```
 
-## Suggested GitHub Pages URL
-
-If your GitHub username is `YOUR_USERNAME`, a clean public link would be:
-
-`https://YOUR_USERNAME.github.io/osc-pce-fingerprint-workflow/`
-
 ## Notes for reviewers and readers
 
 This public-facing workflow is intentionally described using the original source datasets rather than old intermediate filenames. Intermediate arrays may still be generated automatically during execution, but they are implementation details rather than the main user entry points.
