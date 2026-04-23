@@ -36,7 +36,7 @@ This page provides the public workflow for reproducing the manuscript results.
 | A | Main baseline | `Baseline.py` | Main interpretable branch |
 | B | Radius control | `Baseline.py` | Radius = 2 control branch |
 | C | Gao-only | `Gao.py` | Transfer-style validation |
-| D | Joint branch | `Baseline.py` / `Combine.py` | Best predictive branch |
+| D | Joint branch | `Combine.py` | Best predictive branch |
 
 ## Recommended run order
 
