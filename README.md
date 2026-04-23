@@ -1,4 +1,5 @@
-# Interpretable-fingerprint
+# Interpretable Fingerprint-Based Prediction of PCE for Donor-Acceptor Pairs in OSCs
+
 This repository provides the code, source datasets, and run instructions for the manuscript:
 
 **Interpretable Fingerprint-Based Prediction of Power Conversion Efficiency for Donor-Acceptor Pairs in Organic Solar Cells with External Fingerprint-Only Data Integration**
