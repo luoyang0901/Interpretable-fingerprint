@@ -188,3 +188,8 @@ python 02_summarize_results.py \
   --repeated-config config_repeated_split.json \
   --output-dir results
 ```
+Optional:
+
+```bash
+python 03_make_submission_figures.py --summary-dir results --output-dir figures
+```
