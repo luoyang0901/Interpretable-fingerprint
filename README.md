@@ -1,432 +1,196 @@
----
-title: OSC PCE Fingerprint Workflow
-layout: default
----
+# OSC PCE fingerprint workflow
 
-# Code and Data Access
-
-This repository contains the updated reproducible workflow corresponding to the revised manuscript:
+This repository contains the code used for the revised manuscript:
 
 **Interpretable Fingerprint-Based Prediction of Power Conversion Efficiency for Donor--Acceptor Pairs in Organic Solar Cells with External Fingerprint-Only Data Integration**
 
-The workflow was updated after revision to keep the manuscript, Supporting Information, figures, tables, and code under one documented protocol. In particular, the updated version separates:
+The current version uses the final revision protocol. The older A--E workflow and the separate `Gao.py` route have been replaced by `Baseline.py` and `Combine.py`.
 
-1. the **structure-resolved conventional baseline**, which supports interpretation and the diagnostic unknown-pair hold-out;
-2. the **fixed-split TextCNN(FPtand) 101-seed ensemble**, which provides common-test-set parity plots and best-single/ensemble comparisons; and
-3. the **repeated-split robustness analyses**, which report mean ± SD and 95% confidence intervals.
+## Data
 
-## Repository status after revision
+Place the input files in `data/`:
 
-The public code has been updated to match the revised manuscript. The previous A--E workflow has been replaced by the following final reproducible workflow:
+```text
+data/
+  D-A.csv
+  gao_fd_fp.npy
+  gao_fa_fp.npy
+  gao_fp_Y.npy
+```
 
-- `Baseline.py` now implements the finalized conventional machine-learning baseline:
-  - 836 pair-level in-house D--A records as the parent structure-resolved dataset;
-  - fixed 20-pair diagnostic unknown-pair hold-out selected with seed 42;
-  - model development on the remaining 816 pairs;
-  - radius = 3 Morgan fingerprints;
-  - fixed 70:10:20 split with split seed 12;
-  - deterministic mutual-information feature selection;
-  - no-augmentation Random Forest for the unknown-pair diagnostic hold-out, SHAP-oriented baseline, and Block A high-PCE cases;
-  - 101 repeated random splits for conventional-baseline stability statistics.
+`D-A.csv` is the structure-resolved in-house dataset. The Gao arrays are the external fingerprint-only data. The Gao source reports 566 pairs; 535 retained fingerprint records are used after preprocessing.
 
-- `Combine.py` now implements the finalized TextCNN(FPtand) training runner:
-  - Gao-only, in-house radius-2, and joint in-house + Gao branches;
-  - fixed HSPXY split for best-single and 101-model ensemble parity plots;
-  - model seeds 0--100;
-  - best single model selected by validation RMSE;
-  - 101-model ensemble formed only on the common fixed test set;
-  - repeated random 70:10:20 split campaign for partition-robustness statistics.
-
-The revised GitHub workflow should therefore be used instead of the earlier `Gao.py` / A--E command sequence.
-
-## Source datasets
-
-Place the input files in the `data/` directory:
+## Code
 
 | File | Role |
 |---|---|
-| `D-A.csv` | structure-resolved in-house donor--acceptor dataset |
-| `Donor.csv` | optional donor metadata table, if used by interpretation scripts |
-| `Acceptor.csv` | optional acceptor metadata table, if used by interpretation scripts |
-| `gao_fd_fp.npy` | Gao donor-side fingerprint array |
-| `gao_fa_fp.npy` | Gao acceptor-side fingerprint array |
-| `gao_fp_Y.npy` | Gao target PCE array |
+| `Baseline.py` | conventional baseline, fixed 20-pair hold-out, repeated-split metrics |
+| `Combine.py` | one TextCNN(FPtand) training run |
+| `00_prepare_datasets.py` | prepares in-house radius-2 and joint arrays |
+| `01_run_101_seeds.py` | runs the three TextCNN branches over seeds 0--100 |
+| `02_summarize_results.py` | combines fixed-split and repeated-split TextCNN outputs |
+| `03_make_submission_figures.py` | optional manuscript figure generation from saved source data |
 
-The Gao source reports 566 D--A pairs. In the revised workflow, 535 retained fingerprint records are used after preprocessing of the available arrays.
+`Baseline.py` and `Combine.py` are data-first scripts. By default they save CSV/JSON/NPZ source data. They do not need to generate final manuscript figures or formatted tables directly. Use `--save-plots` only for quick local checks.
 
-## Main code modules
+## Run
 
-| Script | Purpose |
-|---|---|
-| `Baseline.py` | conventional ML baseline, fixed unknown-pair hold-out, repeated-split statistics, high-PCE Block A outputs |
-| `Combine.py` | single TextCNN(FPtand) training runner for fixed or repeated split settings |
-| `00_prepare_datasets.py` | prepares in-house radius-2 arrays and joint in-house + Gao arrays |
-| `01_run_101_seeds.py` | batch driver for three TextCNN branches and seeds 0--100 |
-| `02_summarize_results.py` | summarizes fixed-split and repeated-split TextCNN results into publication tables |
-| `03_make_submission_figures.py` | generates manuscript-style parity plots in PNG/TIFF/PDF/EPS |
-| `04_configure_runtime.py` | configures CPU/GPU device and runtime settings |
-| `Explanation.py` | SHAP and interpretation-oriented analyses for the structure-resolved branch, if used |
-
-## Final workflow overview
-
-| Stage | Branch | Script(s) | Main outputs |
-|---|---|---|---|
-| 1 | Conventional baseline | `Baseline.py` | Figures S2--S4; Tables S7--S11; Block A high-PCE table |
-| 2 | Dataset preparation for TextCNN | `00_prepare_datasets.py` | in-house radius-2 arrays; joint in-house + Gao arrays |
-| 3 | TextCNN fixed split | `01_run_101_seeds.py` + `Combine.py` | best-single and 101-model ensemble predictions; Figures 4--6 / S5--S7 |
-| 4 | TextCNN repeated split | `01_run_101_seeds.py` + `Combine.py` | mean ± SD and 95% CI for partition robustness |
-| 5 | Publication outputs | `02_summarize_results.py`, `03_make_submission_figures.py` | final tables, high-PCE cases, parity plots, source data |
-
-## Environment
-
-A typical environment contains:
-
-```bash
-python >= 3.10
-numpy
-pandas
-scipy
-scikit-learn
-matplotlib
-rdkit
-pytorch
-```
-
-Install the core packages, for example:
-
-```bash
-conda create -n osc_pce python=3.11 -y
-conda activate osc_pce
-conda install -c conda-forge rdkit numpy pandas scipy scikit-learn matplotlib -y
-pip install torch torchvision torchaudio
-```
-
-For GPU runs, install a CUDA-enabled PyTorch build appropriate for the local NVIDIA driver.
-
-## Reproducible run order
-
-### 1. Run the finalized conventional baseline
+### 1. Conventional baseline
 
 ```bash
 python Baseline.py \
   --da-csv data/D-A.csv \
-  --output-dir results_baseline_final \
+  --output-dir baseline \
   --run-repeated-split
 ```
 
-This command generates the fixed 20-pair unknown-pair diagnostic hold-out, the 816-pair development set, the fixed-split conventional baseline tables, and the 101 repeated-split statistics.
-
-Key outputs include:
+Protocol:
 
 ```text
-results_baseline_final/fixed_unknown_20_pairs_seed42.csv
-results_baseline_final/development_816_pairs_after_unknown_exclusion.csv
-results_baseline_final/Table_S7_repeated_split_statistics_wide.csv
-results_baseline_final/Table_S8_fixed_split_all_model_metrics.csv
-results_baseline_final/Table_S9_selected_baseline_models.csv
-results_baseline_final/Table_S11_unknown_20_predictions_no_aug_random_forest.csv
-results_baseline_final/Table_S18_BlockA_high_PCE_no_aug_random_forest.csv
-results_baseline_final/baseline_run_summary.json
+836 parent in-house pairs
+20 fixed unknown-pair samples selected with seed 42
+816 pairs used for conventional model development
+radius-3 Morgan fingerprints
+70:10:20 split with seed 12
+no-augmentation Random Forest for the unknown-pair diagnostic test
+101 random repeated splits for conventional-baseline stability
 ```
 
-The unknown-pair diagnostic result reported in the revised manuscript corresponds to the **no-augmentation Random Forest** trained under this unified seed-12 protocol.
+Main output files:
 
-### 2. Prepare TextCNN datasets
+```text
+baseline/parent_pairs.csv
+baseline/unknown_pairs.csv
+baseline/development_pairs.csv
+baseline/split_indices.npz
+baseline/baseline_metrics.csv
+baseline/selected_models.csv
+baseline/baseline_parity.csv
+baseline/unknown_predictions.csv
+baseline/high_pce_block_a.csv
+baseline/repeated_metrics.csv
+baseline/repeated_summary.csv
+baseline/summary.json
+```
+
+### 2. Prepare TextCNN data
 
 ```bash
 python 00_prepare_datasets.py \
   --inhouse-csv data/D-A.csv \
-  --unknown-pairs-csv results_baseline_final/fixed_unknown_20_pairs_seed42.csv \
+  --unknown-pairs-csv baseline/unknown_pairs.csv \
   --gao-fd data/gao_fd_fp.npy \
   --gao-fa data/gao_fa_fp.npy \
   --gao-y data/gao_fp_Y.npy \
   --output-dir prepared_data
 ```
 
-Expected prepared arrays include:
+The joint branch contains 816 in-house radius-2 samples plus 535 Gao samples, giving 1351 samples.
 
-```text
-prepared_data/inhouse_r2_fd.npy
-prepared_data/inhouse_r2_fa.npy
-prepared_data/inhouse_r2_y.npy
-prepared_data/joint_fd.npy
-prepared_data/joint_fa.npy
-prepared_data/joint_y.npy
-```
-
-The joint branch contains 816 in-house radius-2 samples plus 535 retained Gao samples, giving 1351 samples.
-
-### 3. Configure runtime for TextCNN
-
-For GPU:
-
-```bash
-python 04_configure_runtime.py --configs config_fixed_split.json --max-workers 1
-python 04_configure_runtime.py --configs config_repeated_split.json --max-workers 1
-```
-
-For CPU-only fallback:
-
-```bash
-python 04_configure_runtime.py --configs config_fixed_split.json --force-cpu --max-workers 1
-python 04_configure_runtime.py --configs config_repeated_split.json --force-cpu --max-workers 1
-```
-
-### 4. Run fixed-split TextCNN 101-seed campaign
+### 3. Run TextCNN fixed split
 
 ```bash
 python 01_run_101_seeds.py --config config_fixed_split.json --max-workers 1
 ```
 
-This runs 303 jobs:
+This fixed HSPXY campaign is used for best-single models, 101-model ensemble predictions, and common-test-set parity data.
 
-```text
-3 branches × 101 model seeds = 303 jobs
-```
-
-The fixed-split campaign uses a common HSPXY test set and is used for:
-
-- validation-selected best-single models;
-- 101-model ensemble predictions;
-- common-test-set parity plots;
-- cross-branch fixed-split comparison;
-- high-PCE Block B case analysis.
-
-### 5. Run repeated-split TextCNN 101-seed campaign
+### 4. Run TextCNN repeated split
 
 ```bash
 python 01_run_101_seeds.py --config config_repeated_split.json --max-workers 1
 ```
 
-This also runs 303 jobs, but each seed uses a different random 70:10:20 split. These results are used only for metric-level robustness statistics. Predictions from repeated-split runs are not averaged because the test samples differ across runs.
+This campaign is used for repeated-split mean, SD, and 95% confidence intervals. Predictions from different repeated splits are not averaged because their test samples differ.
 
-### 6. Summarize TextCNN results and generate figures
+### 5. Summarize source data
 
 ```bash
 python 02_summarize_results.py \
   --fixed-config config_fixed_split.json \
   --repeated-config config_repeated_split.json \
-  --output-dir publication_outputs
+  --output-dir results
 ```
+
+Optional figure generation:
 
 ```bash
 python 03_make_submission_figures.py \
-  --summary-dir publication_outputs \
-  --output-dir publication_figures
+  --summary-dir results \
+  --output-dir figures
 ```
 
-Main outputs include:
+## TextCNN run outputs
+
+Each TextCNN branch/seed folder stores simple source files such as:
 
 ```text
-publication_outputs/Table_TextCNN_101seed_statistics_wide.csv
-publication_outputs/Table_TextCNN_cross_branch.csv
-publication_outputs/gao_only/high_PCE_cases.csv
-publication_outputs/inhouse_r2/high_PCE_cases.csv
-publication_outputs/joint_inhouse_gao/high_PCE_cases.csv
-publication_figures/gao_only_best_single_and_ensemble.pdf
-publication_figures/inhouse_r2_best_single_and_ensemble.pdf
-publication_figures/joint_inhouse_gao_best_single_and_ensemble.pdf
-publication_figures/Figure_TextCNN_three_branches_3x2.pdf
+split_indices.npz
+seed_metrics.csv
+best_single_predictions.csv
+ensemble_predictions.csv
+high_pce_cases.csv
+summary.json
 ```
 
-## Direct `Combine.py` example
+Per-model subfolders may also contain:
 
-The batch driver calls `Combine.py` internally. A direct single-branch fixed-split example is:
+```text
+train_history.csv
+predictions.csv
+```
+
+These files are intended as source data for plotting, checking, and manuscript table assembly.
+
+## Notes
+
+- The 20-pair unknown-pair set is a diagnostic hold-out, not a broad external validation set.
+- The fixed HSPXY split is used for common-test-set ensemble comparison.
+- Repeated random splits are used for partition-sensitivity statistics.
+- Gao data are fingerprint-only in this workflow and are used for representation-aligned prediction, not structure-level interpretation.
+# Run commands
+
+## Baseline
 
 ```bash
-python Combine.py \
-  --fd-path prepared_data/joint_fd.npy \
-  --fa-path prepared_data/joint_fa.npy \
-  --y-path prepared_data/joint_y.npy \
-  --output-dir results_example_joint_fixed \
-  --profile strong \
-  --split-method hspxy \
-  --split-seed 12 \
-  --model-seeds 0,1,2 \
-  --test-size 0.2 \
-  --valid-fraction-of-trainval 0.125 \
-  --batch-size 32 \
-  --epochs 300 \
-  --patience 40 \
-  --lr 0.001 \
-  --weight-decay 0.0001 \
-  --grad-clip 5.0 \
-  --max-len 200 \
-  --embedding-dim 128 \
-  --channels 128 \
-  --dropout 0.35 \
-  --kernel-sizes 3,5,7 \
-  --hidden-dim 256 \
-  --loss huber \
-  --device cuda:0
+python Baseline.py --da-csv data/D-A.csv --output-dir baseline --run-repeated-split
 ```
 
-Use this direct command for testing only. The manuscript results come from the full 101-seed campaigns.
-
-## Important interpretation notes
-
-- The fixed HSPXY split is used as a common benchmark for best-single selection, 101-model ensemble construction, and parity plots.
-- The repeated-split campaigns quantify partition sensitivity and are reported as mean ± SD and 95% confidence intervals.
-- Repeated-split predictions are not averaged across runs.
-- The unknown-pair hold-out contains only 20 fixed pairs and is interpreted as a diagnostic extrapolation probe, not as broad external validation.
-- Gao fingerprint-only data are used for representation-aligned merged modeling and are not treated as independent external validation.
-- Structure-level interpretation is restricted to the in-house records with recoverable donor and acceptor structures.
-
-## GitHub update note
-
-The repository has been updated to contain the final `Baseline.py`, final `Combine.py`, updated run commands, fixed/repeated split protocol descriptions, and documentation matching the revised manuscript and Supporting Information.
-# Final Run Commands for the Revised OSC PCE Fingerprint Workflow
-
-This file replaces the earlier A--E command list. The revised manuscript uses a finalized conventional-baseline protocol and two TextCNN(FPtand) 101-seed campaigns.
-
-## 0. Suggested directory layout
-
-```text
-project_root/
-  data/
-    D-A.csv
-    gao_fd_fp.npy
-    gao_fa_fp.npy
-    gao_fp_Y.npy
-  Baseline.py
-  Combine.py
-  00_prepare_datasets.py
-  01_run_101_seeds.py
-  02_summarize_results.py
-  03_make_submission_figures.py
-  04_configure_runtime.py
-  config_fixed_split.json
-  config_repeated_split.json
-```
-
-## 1. Conventional baseline and unknown-pair diagnostic hold-out
-
-```bash
-python Baseline.py \
-  --da-csv data/D-A.csv \
-  --output-dir results_baseline_final \
-  --run-repeated-split
-```
-
-Final protocol:
-
-```text
-836 parent structure-resolved D--A pairs
-seed 42 fixed 20-pair diagnostic unknown-pair hold-out
-816 pairs for conventional model development
-radius = 3 Morgan fingerprints
-70:10:20 fixed split with split seed 12
-deterministic mutual-information feature selection
-no-augmentation Random Forest for unknown-pair, SHAP-oriented baseline, and Block A
-101 repeated random splits for conventional-baseline statistics
-```
-
-## 2. Prepare in-house radius-2 and joint arrays for TextCNN
+## Prepare TextCNN arrays
 
 ```bash
 python 00_prepare_datasets.py \
   --inhouse-csv data/D-A.csv \
-  --unknown-pairs-csv results_baseline_final/fixed_unknown_20_pairs_seed42.csv \
+  --unknown-pairs-csv baseline/unknown_pairs.csv \
   --gao-fd data/gao_fd_fp.npy \
   --gao-fa data/gao_fa_fp.npy \
   --gao-y data/gao_fp_Y.npy \
   --output-dir prepared_data
 ```
 
-## 3. Configure runtime
-
-GPU:
-
-```bash
-python 04_configure_runtime.py --configs config_fixed_split.json --max-workers 1
-python 04_configure_runtime.py --configs config_repeated_split.json --max-workers 1
-```
-
-CPU-only:
-
-```bash
-python 04_configure_runtime.py --configs config_fixed_split.json --force-cpu --max-workers 1
-python 04_configure_runtime.py --configs config_repeated_split.json --force-cpu --max-workers 1
-```
-
-## 4. Fixed-split TextCNN 101-seed campaign
+## Fixed-split TextCNN
 
 ```bash
 python 01_run_101_seeds.py --config config_fixed_split.json --max-workers 1
 ```
 
-Expected number of completed jobs:
-
-```text
-3 branches × 101 model seeds = 303
-```
-
-Check progress:
-
-```bash
-find results_fixed_split_101 -name run_summary.json | wc -l
-```
-
-Windows PowerShell:
-
-```powershell
-(Get-ChildItem '.\results_fixed_split_101' -Recurse -Filter run_summary.json).Count
-```
-
-## 5. Repeated-split TextCNN 101-seed campaign
+## Repeated-split TextCNN
 
 ```bash
 python 01_run_101_seeds.py --config config_repeated_split.json --max-workers 1
 ```
 
-Expected number of completed jobs:
-
-```text
-3 branches × 101 paired split/model seeds = 303
-```
-
-Check progress:
-
-```bash
-find results_repeated_split_101 -name run_summary.json | wc -l
-```
-
-Windows PowerShell:
-
-```powershell
-(Get-ChildItem '.\results_repeated_split_101' -Recurse -Filter run_summary.json).Count
-```
-
-## 6. Summarize and generate publication figures
+## Summarize
 
 ```bash
 python 02_summarize_results.py \
   --fixed-config config_fixed_split.json \
   --repeated-config config_repeated_split.json \
-  --output-dir publication_outputs
+  --output-dir results
 ```
+
+Optional:
 
 ```bash
-python 03_make_submission_figures.py \
-  --summary-dir publication_outputs \
-  --output-dir publication_figures
-```
-
-## 7. Package final outputs
-
-Linux/macOS:
-
-```bash
-zip -r OSC_PCE_final_outputs.zip \
-  results_baseline_final \
-  publication_outputs \
-  publication_figures \
-  config_fixed_split.json \
-  config_repeated_split.json
-```
-
-Windows PowerShell:
-
-```powershell
-Compress-Archive -Path '.\results_baseline_final','.\publication_outputs','.\publication_figures','.\config_fixed_split.json','.\config_repeated_split.json' -DestinationPath '.\OSC_PCE_final_outputs.zip' -Force
+python 03_make_submission_figures.py --summary-dir results --output-dir figures
 ```
