@@ -98,7 +98,6 @@ strict scaffold test       role-aware TextCNN
 ├── results_legacy/
 ├── interpretation/
 ├── figures_roleaware/
-└── graphical_abstract/
 ```
 
 See `DATA_DESCRIPTION.md` for file-level interpretation.
