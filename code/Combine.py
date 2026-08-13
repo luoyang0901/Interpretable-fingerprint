@@ -1,491 +1,507 @@
 #!/usr/bin/env python3
-"""Shared utilities for the OSC PCE reviewer-revision workflow."""
+# -*- coding: utf-8 -*-
+"""Train one or more TextCNN(FPtand) models for one data branch.
+
+Reviewer-revision features:
+- target-blind structure-only group split (default);
+- identical encoded representations never cross split boundaries;
+- optional legacy target-informed HSPXY benchmark retained with an explicit name;
+- legacy and role-aware/balanced FPtand encodings;
+- full active-bit and truncation audit;
+- calibration, residual, stratified-error and ranking metrics;
+- validation-RMSE model selection and machine-readable predictions.
+"""
 from __future__ import annotations
 
-import hashlib
+import argparse
 import json
 import math
-import os
-import platform
 import random
-import sys
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Iterable, Sequence
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
-from scipy.stats import pearsonr, spearmanr
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+import torch
+import torch.nn as nn
 from sklearn.model_selection import GroupShuffleSplit
+from torch.utils.data import DataLoader, Dataset
+
+from common_utils import (
+    encode_fptand,
+    environment_report,
+    factorize_hashes,
+    paired_row_hashes,
+    paired_similarity_matrix,
+    random_group_split,
+    ranking_metrics,
+    regression_metrics,
+    residual_table,
+    save_json,
+    stratified_error_table,
+    structure_ks_group_split,
+    validate_group_disjoint,
+)
 
 
 def seed_everything(seed: int) -> None:
-    random.seed(int(seed))
-    np.random.seed(int(seed))
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 
-def safe_pearsonr(y_true: np.ndarray, y_pred: np.ndarray) -> float:
-    y_true = np.asarray(y_true, dtype=float).reshape(-1)
-    y_pred = np.asarray(y_pred, dtype=float).reshape(-1)
-    if len(y_true) < 2 or np.std(y_true) < 1e-12 or np.std(y_pred) < 1e-12:
-        return float("nan")
-    return float(pearsonr(y_true, y_pred)[0])
+class SeqRegDataset(Dataset):
+    def __init__(self, seq: np.ndarray, y: np.ndarray):
+        self.seq = torch.as_tensor(seq, dtype=torch.long)
+        self.y = torch.as_tensor(np.asarray(y).reshape(-1, 1), dtype=torch.float32)
+
+    def __len__(self) -> int:
+        return len(self.seq)
+
+    def __getitem__(self, idx: int):
+        return self.seq[idx], self.y[idx]
 
 
-def safe_spearmanr(y_true: np.ndarray, y_pred: np.ndarray) -> float:
-    y_true = np.asarray(y_true, dtype=float).reshape(-1)
-    y_pred = np.asarray(y_pred, dtype=float).reshape(-1)
-    if len(y_true) < 2 or np.std(y_true) < 1e-12 or np.std(y_pred) < 1e-12:
-        return float("nan")
-    return float(spearmanr(y_true, y_pred)[0])
+class GaoStrictTextCNN(nn.Module):
+    def __init__(self, vocab_size: int, embedding_dim: int, channels: int, kernel_size: int, dropout: float):
+        super().__init__()
+        self.embedding = nn.Embedding(vocab_size + 1, embedding_dim, padding_idx=0)
+        nn.init.uniform_(self.embedding.weight, -1.0, 1.0)
+        with torch.no_grad():
+            self.embedding.weight[0].fill_(0.0)
+        self.conv = nn.Conv2d(1, channels, kernel_size=(kernel_size, embedding_dim))
+        nn.init.normal_(self.conv.weight, std=0.01)
+        nn.init.constant_(self.conv.bias, 0.01)
+        self.dropout = nn.Dropout(dropout)
+        self.fc = nn.Linear(channels, 1)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.embedding(x).unsqueeze(1)
+        x = torch.relu(self.conv(x)).squeeze(3)
+        x = torch.max(x, dim=2)[0]
+        return self.fc(self.dropout(x))
 
 
-def calibration_parameters(y_true: np.ndarray, y_pred: np.ndarray) -> tuple[float, float]:
-    """Fit observed = intercept + slope * predicted by ordinary least squares."""
-    y_true = np.asarray(y_true, dtype=float).reshape(-1)
-    y_pred = np.asarray(y_pred, dtype=float).reshape(-1)
-    if len(y_true) < 2 or np.std(y_pred) < 1e-12:
-        return float("nan"), float("nan")
-    slope, intercept = np.polyfit(y_pred, y_true, deg=1)
-    return float(intercept), float(slope)
-
-
-def regression_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict[str, float]:
-    y_true = np.asarray(y_true, dtype=float).reshape(-1)
-    y_pred = np.asarray(y_pred, dtype=float).reshape(-1)
-    intercept, slope = calibration_parameters(y_true, y_pred)
-    residual = y_pred - y_true
-    return {
-        "r": safe_pearsonr(y_true, y_pred),
-        "spearman_rho": safe_spearmanr(y_true, y_pred),
-        "r2": float(r2_score(y_true, y_pred)),
-        "rmse": float(np.sqrt(mean_squared_error(y_true, y_pred))),
-        "mae": float(mean_absolute_error(y_true, y_pred)),
-        "mean_signed_error": float(np.mean(residual)),
-        "calibration_intercept": intercept,
-        "calibration_slope": slope,
-    }
-
-
-def ranking_metrics(
-    y_true: np.ndarray,
-    y_pred: np.ndarray,
-    top_fractions: Sequence[float] = (0.10, 0.20),
-    high_threshold: float = 16.0,
-) -> pd.DataFrame:
-    y_true = np.asarray(y_true, dtype=float).reshape(-1)
-    y_pred = np.asarray(y_pred, dtype=float).reshape(-1)
-    n = len(y_true)
-    if n == 0:
-        return pd.DataFrame()
-    true_order = np.argsort(-y_true, kind="stable")
-    pred_order = np.argsort(-y_pred, kind="stable")
-    high_set = set(np.flatnonzero(y_true >= high_threshold).tolist())
-    rows: list[dict[str, float | int | str]] = []
-    for frac in top_fractions:
-        k = max(1, min(n, int(math.ceil(n * float(frac)))))
-        true_top = set(true_order[:k].tolist())
-        pred_top = set(pred_order[:k].tolist())
-        hit = len(true_top & pred_top)
-        precision = hit / k
-        recall = hit / len(true_top) if true_top else float("nan")
-        prevalence = len(true_top) / n
-        enrichment = precision / prevalence if prevalence > 0 else float("nan")
-        high_hit = len(high_set & pred_top)
-        high_recall = high_hit / len(high_set) if high_set else float("nan")
-        rows.append(
-            {
-                "top_fraction": float(frac),
-                "k": int(k),
-                "top_k_hits": int(hit),
-                "top_k_precision": float(precision),
-                "top_k_recall": float(recall),
-                "enrichment_factor": float(enrichment),
-                "high_pce_threshold": float(high_threshold),
-                "n_high_pce": int(len(high_set)),
-                "high_pce_recall_in_predicted_top_k": float(high_recall),
-            }
+class StrongTextCNN(nn.Module):
+    def __init__(
+        self,
+        vocab_size: int,
+        embedding_dim: int,
+        channels: int,
+        kernel_sizes: Tuple[int, ...],
+        dropout: float,
+        hidden_dim: int,
+    ):
+        super().__init__()
+        self.embedding = nn.Embedding(vocab_size + 1, embedding_dim, padding_idx=0)
+        nn.init.uniform_(self.embedding.weight, -0.5, 0.5)
+        with torch.no_grad():
+            self.embedding.weight[0].fill_(0.0)
+        self.convs = nn.ModuleList([nn.Conv2d(1, channels, kernel_size=(k, embedding_dim)) for k in kernel_sizes])
+        for conv in self.convs:
+            nn.init.kaiming_normal_(conv.weight, nonlinearity="relu")
+            nn.init.constant_(conv.bias, 0.0)
+        self.ln = nn.LayerNorm(len(kernel_sizes) * channels)
+        self.dropout = nn.Dropout(dropout)
+        self.head = nn.Sequential(
+            nn.Linear(len(kernel_sizes) * channels, hidden_dim),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, 1),
         )
-    return pd.DataFrame(rows)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.embedding(x).unsqueeze(1)
+        pooled = []
+        for conv in self.convs:
+            z = torch.relu(conv(x)).squeeze(3)
+            pooled.append(torch.max(z, dim=2)[0])
+        x = self.dropout(self.ln(torch.cat(pooled, dim=1)))
+        return self.head(x)
 
 
-def residual_table(y_true: np.ndarray, y_pred: np.ndarray, indices: np.ndarray | None = None) -> pd.DataFrame:
-    y_true = np.asarray(y_true, dtype=float).reshape(-1)
-    y_pred = np.asarray(y_pred, dtype=float).reshape(-1)
-    if indices is None:
-        indices = np.arange(len(y_true), dtype=int)
-    df = pd.DataFrame(
-        {
-            "array_index": np.asarray(indices, dtype=int),
-            "y_true": y_true,
-            "y_pred": y_pred,
-        }
-    )
-    df["residual_pred_minus_true"] = df["y_pred"] - df["y_true"]
-    df["absolute_error"] = np.abs(df["residual_pred_minus_true"])
-    df["squared_error"] = df["residual_pred_minus_true"] ** 2
-    df["relative_error_percent"] = np.where(
-        np.abs(df["y_true"]) > 1e-12,
-        df["absolute_error"] / np.abs(df["y_true"]) * 100.0,
-        np.nan,
-    )
-    return df
+@dataclass
+class TrainConfig:
+    profile: str
+    split_method: str
+    split_seed: int
+    model_seeds: List[int]
+    test_size: float
+    valid_fraction_of_trainval: float
+    encoding_mode: str
+    batch_size: int
+    epochs: int
+    patience: int
+    lr: float
+    weight_decay: float
+    grad_clip: float
+    max_len: int
+    embedding_dim: int
+    channels: int
+    dropout: float
+    kernel_sizes: List[int]
+    hidden_dim: int
+    loss: str
+    device: str
+    high_pce_threshold: float
 
 
-def stratified_error_table(y_true: np.ndarray, y_pred: np.ndarray, n_bins: int = 5) -> pd.DataFrame:
-    df = residual_table(y_true, y_pred)
-    try:
-        df["pce_bin"] = pd.qcut(df["y_true"], q=n_bins, duplicates="drop")
-    except ValueError:
-        df["pce_bin"] = "all"
-    rows = []
-    for bin_name, sub in df.groupby("pce_bin", observed=True):
-        m = regression_metrics(sub["y_true"].to_numpy(), sub["y_pred"].to_numpy())
-        rows.append(
-            {
-                "pce_bin": str(bin_name),
-                "n": int(len(sub)),
-                "experimental_min": float(sub["y_true"].min()),
-                "experimental_max": float(sub["y_true"].max()),
-                **m,
-            }
-        )
-    return pd.DataFrame(rows)
+def parse_int_list(value: str) -> List[int]:
+    return [int(x.strip()) for x in value.split(",") if x.strip()]
 
 
-def bootstrap_metric_intervals(
-    y_true: np.ndarray,
-    y_pred: np.ndarray,
-    n_bootstrap: int = 2000,
-    seed: int = 2026,
-    confidence: float = 0.95,
-) -> pd.DataFrame:
-    y_true = np.asarray(y_true, dtype=float).reshape(-1)
-    y_pred = np.asarray(y_pred, dtype=float).reshape(-1)
-    if len(y_true) != len(y_pred) or len(y_true) < 2:
-        raise ValueError("Bootstrap requires equal-length arrays with at least two samples.")
-    rng = np.random.default_rng(seed)
-    metric_names = list(regression_metrics(y_true, y_pred).keys())
-    draws: dict[str, list[float]] = {name: [] for name in metric_names}
-    n = len(y_true)
-    for _ in range(int(n_bootstrap)):
-        idx = rng.integers(0, n, size=n)
-        m = regression_metrics(y_true[idx], y_pred[idx])
-        for name, value in m.items():
-            if np.isfinite(value):
-                draws[name].append(float(value))
-    alpha = (1.0 - confidence) / 2.0
-    point = regression_metrics(y_true, y_pred)
-    rows = []
-    for name in metric_names:
-        arr = np.asarray(draws[name], dtype=float)
-        rows.append(
-            {
-                "metric": name,
-                "point_estimate": point[name],
-                "bootstrap_n_valid": int(len(arr)),
-                "percentile_low": float(np.quantile(arr, alpha)) if len(arr) else np.nan,
-                "percentile_high": float(np.quantile(arr, 1.0 - alpha)) if len(arr) else np.nan,
-            }
-        )
-    return pd.DataFrame(rows)
-
-
-def empirical_summary(values: Iterable[float]) -> dict[str, float | int]:
-    arr = np.asarray(list(values), dtype=float)
-    arr = arr[np.isfinite(arr)]
-    if len(arr) == 0:
-        return {
-            "n": 0,
-            "mean": np.nan,
-            "sd": np.nan,
-            "p2_5": np.nan,
-            "p25": np.nan,
-            "median": np.nan,
-            "p75": np.nan,
-            "p97_5": np.nan,
-            "min": np.nan,
-            "max": np.nan,
-        }
-    return {
-        "n": int(len(arr)),
-        "mean": float(np.mean(arr)),
-        "sd": float(np.std(arr, ddof=1)) if len(arr) > 1 else 0.0,
-        "p2_5": float(np.quantile(arr, 0.025)),
-        "p25": float(np.quantile(arr, 0.25)),
-        "median": float(np.quantile(arr, 0.50)),
-        "p75": float(np.quantile(arr, 0.75)),
-        "p97_5": float(np.quantile(arr, 0.975)),
-        "min": float(np.min(arr)),
-        "max": float(np.max(arr)),
-    }
-
-
-def binary_row_hashes(arr: np.ndarray) -> np.ndarray:
-    arr = np.asarray(arr)
-    packed = np.packbits(arr.astype(np.uint8), axis=1)
-    return np.asarray([hashlib.sha256(row.tobytes()).hexdigest() for row in packed], dtype=object)
-
-
-def paired_row_hashes(fd: np.ndarray, fa: np.ndarray) -> np.ndarray:
-    return binary_row_hashes(np.hstack([np.asarray(fd), np.asarray(fa)]))
-
-
-def sequence_row_hashes(seq: np.ndarray) -> np.ndarray:
-    seq = np.asarray(seq, dtype=np.int64)
-    return np.asarray([hashlib.sha256(row.tobytes()).hexdigest() for row in seq], dtype=object)
-
-
-def factorize_hashes(hashes: Sequence[str]) -> np.ndarray:
-    codes, _ = pd.factorize(np.asarray(hashes, dtype=object), sort=True)
-    return codes.astype(np.int64)
-
-
-def tanimoto_similarity_matrix(a: np.ndarray, b: np.ndarray) -> np.ndarray:
-    a = np.asarray(a, dtype=np.float32)
-    b = np.asarray(b, dtype=np.float32)
-    inter = a @ b.T
-    a_sum = np.sum(a, axis=1, keepdims=True)
-    b_sum = np.sum(b, axis=1, keepdims=True).T
-    union = a_sum + b_sum - inter
-    return np.divide(inter, union, out=np.zeros_like(inter, dtype=np.float32), where=union > 0)
-
-
-def paired_similarity_matrix(fd_a: np.ndarray, fa_a: np.ndarray, fd_b: np.ndarray, fa_b: np.ndarray) -> np.ndarray:
-    return 0.5 * (
-        tanimoto_similarity_matrix(fd_a, fd_b) + tanimoto_similarity_matrix(fa_a, fa_b)
-    )
-
-
-def nearest_similarity_audit(
-    test_fd: np.ndarray,
-    test_fa: np.ndarray,
-    train_fd: np.ndarray,
-    train_fa: np.ndarray,
-    test_indices: np.ndarray | None = None,
-    train_indices: np.ndarray | None = None,
-) -> pd.DataFrame:
-    if len(train_fd) == 0:
-        raise ValueError("Training/reference set is empty.")
-    d_sim = tanimoto_similarity_matrix(test_fd, train_fd)
-    a_sim = tanimoto_similarity_matrix(test_fa, train_fa)
-    p_sim = 0.5 * (d_sim + a_sim)
-    if test_indices is None:
-        test_indices = np.arange(len(test_fd))
-    if train_indices is None:
-        train_indices = np.arange(len(train_fd))
-    rows = []
-    for i in range(len(test_fd)):
-        d_j = int(np.argmax(d_sim[i]))
-        a_j = int(np.argmax(a_sim[i]))
-        p_j = int(np.argmax(p_sim[i]))
-        rows.append(
-            {
-                "test_array_index": int(test_indices[i]),
-                "nearest_donor_train_index": int(train_indices[d_j]),
-                "nearest_donor_similarity": float(d_sim[i, d_j]),
-                "nearest_acceptor_train_index": int(train_indices[a_j]),
-                "nearest_acceptor_similarity": float(a_sim[i, a_j]),
-                "nearest_pair_train_index": int(train_indices[p_j]),
-                "nearest_pair_similarity": float(p_sim[i, p_j]),
-            }
-        )
-    return pd.DataFrame(rows)
-
-
-def encode_fptand(
-    fd: np.ndarray,
-    fa: np.ndarray,
-    max_len: int = 200,
-    mode: str = "legacy",
-) -> tuple[np.ndarray, pd.DataFrame, int]:
-    """Encode fingerprints and return sequence, per-sample audit, and vocabulary size.
-
-    legacy: donor and acceptor share token IDs 1..1024; donor tokens precede acceptor tokens.
-    role_aware: donor IDs 1..1024, separator 1025, acceptor IDs 1026..2049,
-    with deterministic balanced truncation when the full sequence exceeds max_len.
-    """
-    fd = np.asarray(fd)
-    fa = np.asarray(fa)
+def load_arrays(fd_path: str, fa_path: str, y_path: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    fd = np.asarray(np.load(fd_path))
+    fa = np.asarray(np.load(fa_path))
+    y = np.asarray(np.load(y_path)).reshape(-1)
     if fd.shape != fa.shape or fd.ndim != 2 or fd.shape[1] != 1024:
-        raise ValueError(f"Expected equal (n,1024) donor/acceptor arrays, got {fd.shape} and {fa.shape}")
-    if max_len < 3:
-        raise ValueError("max_len must be at least 3.")
-    mode = str(mode).lower()
-    if mode not in {"legacy", "role_aware"}:
-        raise ValueError("mode must be 'legacy' or 'role_aware'.")
-    seq = np.zeros((len(fd), max_len), dtype=np.int64)
-    audit_rows = []
-    for i in range(len(fd)):
-        donor_bits = np.flatnonzero(fd[i] == 1).astype(np.int64)
-        acceptor_bits = np.flatnonzero(fa[i] == 1).astype(np.int64)
-        d_count = int(len(donor_bits))
-        a_count = int(len(acceptor_bits))
-        if mode == "legacy":
-            full = np.concatenate([donor_bits + 1, acceptor_bits + 1])
-            kept = full[:max_len]
-            d_kept = min(d_count, max_len)
-            a_kept = max(0, min(a_count, max_len - d_kept))
-            separator_kept = 0
-            vocab_size = 1024
-        else:
-            budget = max_len - 1
-            if d_count + a_count <= budget:
-                d_kept, a_kept = d_count, a_count
-            elif d_count == 0:
-                d_kept, a_kept = 0, min(a_count, budget)
-            elif a_count == 0:
-                d_kept, a_kept = min(d_count, budget), 0
-            else:
-                d_kept = int(round(budget * d_count / (d_count + a_count)))
-                d_kept = max(1, min(d_count, d_kept))
-                a_kept = min(a_count, budget - d_kept)
-                if a_kept < 1:
-                    a_kept = 1
-                    d_kept = min(d_count, budget - 1)
-                remaining = budget - d_kept - a_kept
-                if remaining > 0:
-                    add_d = min(remaining, d_count - d_kept)
-                    d_kept += add_d
-                    remaining -= add_d
-                    a_kept += min(remaining, a_count - a_kept)
-            donor_tokens = donor_bits[:d_kept] + 1
-            acceptor_tokens = acceptor_bits[:a_kept] + 1026
-            kept = np.concatenate([donor_tokens, np.asarray([1025], dtype=np.int64), acceptor_tokens])
-            separator_kept = 1
-            vocab_size = 2049
-        seq[i, : len(kept)] = kept
-        audit_rows.append(
-            {
-                "array_index": i,
-                "encoding_mode": mode,
-                "donor_active_bits": d_count,
-                "acceptor_active_bits": a_count,
-                "total_active_bits": d_count + a_count,
-                "full_sequence_length": d_count + a_count + (1 if mode == "role_aware" else 0),
-                "max_len": int(max_len),
-                "truncated": bool((d_count + a_count + (1 if mode == "role_aware" else 0)) > max_len),
-                "donor_tokens_retained": int(d_kept),
-                "acceptor_tokens_retained": int(a_kept),
-                "separator_retained": int(separator_kept),
-                "donor_tokens_dropped": int(d_count - d_kept),
-                "acceptor_tokens_dropped": int(a_count - a_kept),
-                "encoded_nonzero_length": int(len(kept)),
-            }
-        )
-    return seq, pd.DataFrame(audit_rows), vocab_size
+        raise ValueError(f"Expected equal (n,1024) fd/fa arrays, got {fd.shape} and {fa.shape}")
+    if len(y) != len(fd):
+        raise ValueError(f"Target length mismatch: {y.shape} vs {fd.shape}")
+    for name, arr in [("fd", fd), ("fa", fa)]:
+        if not set(np.unique(arr).tolist()).issubset({0, 1}):
+            raise ValueError(f"{name} is not binary")
+    return fd.astype(np.int8), fa.astype(np.int8), y.astype(np.float32)
 
 
-def random_group_split(
-    n_samples: int,
-    groups: np.ndarray,
-    test_size: float,
-    valid_fraction_of_trainval: float,
-    seed: int,
-) -> dict[str, np.ndarray]:
-    groups = np.asarray(groups)
-    all_idx = np.arange(n_samples)
-    gss = GroupShuffleSplit(n_splits=1, test_size=test_size, random_state=seed)
-    trainval_local, test_local = next(gss.split(all_idx, groups=groups))
-    trainval_idx = all_idx[trainval_local]
-    test_idx = all_idx[test_local]
-    trainval_groups = groups[trainval_idx]
-    gss2 = GroupShuffleSplit(n_splits=1, test_size=valid_fraction_of_trainval, random_state=seed + 100003)
-    train_local, valid_local = next(gss2.split(trainval_idx, groups=trainval_groups))
-    return {
-        "train_idx": trainval_idx[train_local],
-        "valid_idx": trainval_idx[valid_local],
-        "test_idx": test_idx,
-    }
-
-
-def structure_ks_group_split(
+def target_informed_hspxy_group_split(
     fd: np.ndarray,
     fa: np.ndarray,
+    y: np.ndarray,
     groups: np.ndarray,
     test_size: float,
     valid_fraction_of_trainval: float,
     seed: int,
 ) -> dict[str, np.ndarray]:
-    """Target-blind Kennard-Stone-like split at the representation-group level."""
-    fd = np.asarray(fd)
-    fa = np.asarray(fa)
-    groups = np.asarray(groups)
-    unique_groups, first_positions = np.unique(groups, return_index=True)
-    order = np.argsort(first_positions)
-    unique_groups = unique_groups[order]
+    """Legacy benchmark: group-safe HSPXY using both representation and target."""
+    unique_groups = np.unique(groups)
     reps = np.asarray([np.flatnonzero(groups == g)[0] for g in unique_groups], dtype=int)
-    group_sizes = np.asarray([np.sum(groups == g) for g in unique_groups], dtype=int)
-    if len(unique_groups) < 3:
-        raise ValueError("At least three representation groups are required for train/valid/test splitting.")
-    sim = paired_similarity_matrix(fd[reps], fa[reps], fd[reps], fa[reps])
-    dist = 1.0 - sim
-    np.fill_diagonal(dist, 0.0)
+    sizes = np.asarray([np.sum(groups == g) for g in unique_groups], dtype=int)
+    y_group = np.asarray([np.mean(y[groups == g]) for g in unique_groups], dtype=float)
+    structure_distance = 1.0 - paired_similarity_matrix(fd[reps], fa[reps], fd[reps], fa[reps])
+    y_std = (y_group - np.mean(y_group)) / (np.std(y_group) + 1e-12)
+    target_distance = np.abs(y_std[:, None] - y_std[None, :])
+    smax = max(float(np.max(structure_distance)), 1e-12)
+    ymax = max(float(np.max(target_distance)), 1e-12)
+    distance = structure_distance / smax + target_distance / ymax
+    np.fill_diagonal(distance, 0.0)
     rng = np.random.default_rng(seed)
-    max_dist = float(np.max(dist))
-    candidate_pairs = np.argwhere(np.isclose(dist, max_dist))
-    candidate_pairs = candidate_pairs[candidate_pairs[:, 0] < candidate_pairs[:, 1]]
-    if len(candidate_pairs) == 0:
-        first, second = 0, 1
-    else:
-        first, second = candidate_pairs[int(rng.integers(0, len(candidate_pairs)))]
+    max_value = np.max(distance)
+    pairs = np.argwhere(np.isclose(distance, max_value))
+    pairs = pairs[pairs[:, 0] < pairs[:, 1]]
+    first, second = (0, 1) if len(pairs) == 0 else pairs[int(rng.integers(0, len(pairs)))]
     selected = [int(first), int(second)]
-    selected_mask = np.zeros(len(unique_groups), dtype=bool)
-    selected_mask[selected] = True
-    target_trainval_n = int(round((1.0 - test_size) * len(fd)))
-    selected_n = int(group_sizes[selected].sum())
-    while selected_n < target_trainval_n and int(selected_mask.sum()) < len(unique_groups) - 1:
-        remaining = np.flatnonzero(~selected_mask)
-        min_dist = np.min(dist[np.ix_(remaining, np.asarray(selected, dtype=int))], axis=1)
-        best_value = np.max(min_dist)
-        candidates = remaining[np.isclose(min_dist, best_value)]
+    mask = np.zeros(len(unique_groups), dtype=bool)
+    mask[selected] = True
+    target_n = int(round((1.0 - test_size) * len(y)))
+    current_n = int(sizes[selected].sum())
+    while current_n < target_n and int(mask.sum()) < len(unique_groups) - 1:
+        remain = np.flatnonzero(~mask)
+        mind = np.min(distance[np.ix_(remain, np.asarray(selected))], axis=1)
+        candidates = remain[np.isclose(mind, np.max(mind))]
         chosen = int(candidates[int(rng.integers(0, len(candidates)))])
         selected.append(chosen)
-        selected_mask[chosen] = True
-        selected_n += int(group_sizes[chosen])
-    trainval_groups = set(unique_groups[np.asarray(selected, dtype=int)].tolist())
+        mask[chosen] = True
+        current_n += int(sizes[chosen])
+    trainval_groups = set(unique_groups[np.asarray(selected)].tolist())
     trainval_idx = np.asarray([i for i, g in enumerate(groups) if g in trainval_groups], dtype=int)
     test_idx = np.asarray([i for i, g in enumerate(groups) if g not in trainval_groups], dtype=int)
-    if len(test_idx) == 0:
-        raise RuntimeError("Structure-only split produced an empty test set; adjust test_size.")
-    trainval_groups_arr = groups[trainval_idx]
-    gss = GroupShuffleSplit(n_splits=1, test_size=valid_fraction_of_trainval, random_state=seed + 200003)
-    train_local, valid_local = next(gss.split(trainval_idx, groups=trainval_groups_arr))
+    gss = GroupShuffleSplit(n_splits=1, test_size=valid_fraction_of_trainval, random_state=seed + 300007)
+    tr_local, va_local = next(gss.split(trainval_idx, groups=groups[trainval_idx]))
+    return {"train_idx": trainval_idx[tr_local], "valid_idx": trainval_idx[va_local], "test_idx": test_idx}
+
+
+def make_split(
+    fd: np.ndarray,
+    fa: np.ndarray,
+    y: np.ndarray,
+    groups: np.ndarray,
+    cfg: TrainConfig,
+    precomputed_split: str | None,
+) -> dict[str, np.ndarray]:
+    if cfg.split_method == "structure_ks":
+        split = structure_ks_group_split(fd, fa, groups, cfg.test_size, cfg.valid_fraction_of_trainval, cfg.split_seed)
+    elif cfg.split_method == "random_group":
+        split = random_group_split(len(y), groups, cfg.test_size, cfg.valid_fraction_of_trainval, cfg.split_seed)
+    elif cfg.split_method == "hspxy_legacy":
+        split = target_informed_hspxy_group_split(
+            fd, fa, y, groups, cfg.test_size, cfg.valid_fraction_of_trainval, cfg.split_seed
+        )
+    elif cfg.split_method == "precomputed":
+        if not precomputed_split:
+            raise ValueError("--precomputed-split is required for split_method=precomputed")
+        z = np.load(precomputed_split)
+        split = {name: np.asarray(z[f"{name}_idx"], dtype=int) for name in ["train", "valid", "test"]}
+    else:
+        raise ValueError(f"Unknown split method: {cfg.split_method}")
+    validate_group_disjoint(split, groups)
+    return split
+
+
+def make_model(cfg: TrainConfig, vocab_size: int) -> nn.Module:
+    if cfg.profile == "strict_gao":
+        if len(cfg.kernel_sizes) != 1:
+            raise ValueError("strict_gao requires one kernel size")
+        return GaoStrictTextCNN(vocab_size, cfg.embedding_dim, cfg.channels, cfg.kernel_sizes[0], cfg.dropout)
+    if cfg.profile == "strong":
+        return StrongTextCNN(
+            vocab_size, cfg.embedding_dim, cfg.channels, tuple(cfg.kernel_sizes), cfg.dropout, cfg.hidden_dim
+        )
+    raise ValueError(f"Unknown profile: {cfg.profile}")
+
+
+def loss_function(name: str):
+    if name == "mse":
+        return nn.MSELoss()
+    if name == "huber":
+        return nn.SmoothL1Loss(beta=1.0)
+    raise ValueError(name)
+
+
+def evaluate(model: nn.Module, loader: DataLoader, device: str) -> tuple[np.ndarray, np.ndarray, dict[str, float]]:
+    model.eval()
+    true, pred = [], []
+    with torch.no_grad():
+        for xb, yb in loader:
+            out = model(xb.to(device)).detach().cpu().numpy().reshape(-1)
+            true.append(yb.numpy().reshape(-1))
+            pred.append(out)
+    y_true = np.concatenate(true)
+    y_pred = np.concatenate(pred)
+    return y_true, y_pred, regression_metrics(y_true, y_pred)
+
+
+def train_one_seed(
+    seq: np.ndarray,
+    y: np.ndarray,
+    split: dict[str, np.ndarray],
+    cfg: TrainConfig,
+    vocab_size: int,
+    model_seed: int,
+    out_dir: Path,
+) -> dict[str, Any]:
+    seed_everything(model_seed)
+    tr, va, te = split["train_idx"], split["valid_idx"], split["test_idx"]
+    dl_train = DataLoader(SeqRegDataset(seq[tr], y[tr]), batch_size=cfg.batch_size, shuffle=True)
+    dl_valid = DataLoader(SeqRegDataset(seq[va], y[va]), batch_size=cfg.batch_size, shuffle=False)
+    dl_test = DataLoader(SeqRegDataset(seq[te], y[te]), batch_size=cfg.batch_size, shuffle=False)
+    model = make_model(cfg, vocab_size).to(cfg.device)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode="min", factor=0.5, patience=max(5, cfg.patience // 4)
+    )
+    loss_fn = loss_function(cfg.loss)
+    best_rmse = float("inf")
+    best_state = None
+    wait = 0
+    history = []
+    for epoch in range(1, cfg.epochs + 1):
+        model.train()
+        losses = []
+        for xb, yb in dl_train:
+            xb, yb = xb.to(cfg.device), yb.to(cfg.device)
+            optimizer.zero_grad(set_to_none=True)
+            pred = model(xb)
+            loss = loss_fn(pred, yb)
+            loss.backward()
+            if cfg.grad_clip > 0:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.grad_clip)
+            optimizer.step()
+            losses.append(float(loss.item()))
+        _, _, train_m = evaluate(model, dl_train, cfg.device)
+        _, _, valid_m = evaluate(model, dl_valid, cfg.device)
+        scheduler.step(valid_m["rmse"])
+        history.append({
+            "epoch": epoch,
+            "train_loss": float(np.mean(losses)) if losses else np.nan,
+            **{f"train_{k}": v for k, v in train_m.items()},
+            **{f"valid_{k}": v for k, v in valid_m.items()},
+            "lr": optimizer.param_groups[0]["lr"],
+        })
+        if valid_m["rmse"] < best_rmse:
+            best_rmse = valid_m["rmse"]
+            best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+            wait = 0
+        else:
+            wait += 1
+            if wait >= cfg.patience:
+                break
+    if best_state is None:
+        best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+    model.load_state_dict(best_state)
+    y_tr, p_tr, m_tr = evaluate(model, dl_train, cfg.device)
+    y_va, p_va, m_va = evaluate(model, dl_valid, cfg.device)
+    y_te, p_te, m_te = evaluate(model, dl_test, cfg.device)
+    seed_dir = out_dir / f"model_seed_{model_seed}"
+    seed_dir.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(history).to_csv(seed_dir / "train_history.csv", index=False, encoding="utf-8-sig")
+    residual_table(y_va, p_va, va).to_csv(seed_dir / "validation_predictions.csv", index=False, encoding="utf-8-sig")
+    residual_table(y_te, p_te, te).to_csv(seed_dir / "test_predictions.csv", index=False, encoding="utf-8-sig")
+    stratified_error_table(y_te, p_te).to_csv(seed_dir / "test_pce_stratified_errors.csv", index=False, encoding="utf-8-sig")
+    ranking_metrics(y_te, p_te, high_threshold=cfg.high_pce_threshold).to_csv(
+        seed_dir / "test_ranking_metrics.csv", index=False, encoding="utf-8-sig"
+    )
+    torch.save(best_state, seed_dir / "best_model.pt")
+    save_json(seed_dir / "model_metrics.json", {
+        "model_seed": model_seed,
+        "best_validation_rmse_during_training": best_rmse,
+        "train_metrics": m_tr,
+        "validation_metrics": m_va,
+        "test_metrics": m_te,
+    })
     return {
-        "train_idx": trainval_idx[train_local],
-        "valid_idx": trainval_idx[valid_local],
-        "test_idx": test_idx,
+        "model_seed": model_seed,
+        "best_valid_rmse": float(best_rmse),
+        "valid_metrics": m_va,
+        "test_metrics": m_te,
+        "test_true": y_te,
+        "test_pred": p_te,
+        "valid_true": y_va,
+        "valid_pred": p_va,
     }
 
 
-def validate_group_disjoint(split: dict[str, np.ndarray], groups: np.ndarray) -> dict[str, int]:
-    groups = np.asarray(groups)
-    sets = {name: set(groups[np.asarray(split[f"{name}_idx"], dtype=int)].tolist()) for name in ["train", "valid", "test"]}
-    overlaps = {
-        "train_valid_group_overlap": len(sets["train"] & sets["valid"]),
-        "train_test_group_overlap": len(sets["train"] & sets["test"]),
-        "valid_test_group_overlap": len(sets["valid"] & sets["test"]),
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--fd-path", required=True)
+    p.add_argument("--fa-path", required=True)
+    p.add_argument("--y-path", required=True)
+    p.add_argument("--group-path", help="NPY group IDs for the encoded representation. Identical groups stay together.")
+    p.add_argument("--metadata-csv", help="Optional sample metadata copied into the run directory.")
+    p.add_argument("--precomputed-split")
+    p.add_argument("--output-dir", default="textcnn_run")
+    p.add_argument("--profile", choices=["strict_gao", "strong"], default="strong")
+    p.add_argument("--split-method", choices=["structure_ks", "random_group", "hspxy_legacy", "precomputed"], default="structure_ks")
+    p.add_argument("--split-seed", type=int, default=12)
+    p.add_argument("--model-seeds", default="12")
+    p.add_argument("--encoding-mode", choices=["legacy", "role_aware"], default="role_aware")
+    p.add_argument("--test-size", type=float, default=0.20)
+    p.add_argument("--valid-fraction-of-trainval", type=float, default=0.125)
+    p.add_argument("--batch-size", type=int, default=32)
+    p.add_argument("--epochs", type=int, default=300)
+    p.add_argument("--patience", type=int, default=40)
+    p.add_argument("--lr", type=float, default=1e-3)
+    p.add_argument("--weight-decay", type=float, default=1e-4)
+    p.add_argument("--grad-clip", type=float, default=5.0)
+    p.add_argument("--max-len", type=int, default=200)
+    p.add_argument("--embedding-dim", type=int, default=128)
+    p.add_argument("--channels", type=int, default=128)
+    p.add_argument("--dropout", type=float, default=0.35)
+    p.add_argument("--kernel-sizes", default="3,5,7")
+    p.add_argument("--hidden-dim", type=int, default=256)
+    p.add_argument("--loss", choices=["mse", "huber"], default="huber")
+    p.add_argument("--high-pce-threshold", type=float, default=16.0)
+    p.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
+    return p
+
+
+def main() -> None:
+    args = build_parser().parse_args()
+    out = Path(args.output_dir).resolve()
+    out.mkdir(parents=True, exist_ok=True)
+    cfg = TrainConfig(
+        profile=args.profile,
+        split_method=args.split_method,
+        split_seed=args.split_seed,
+        model_seeds=parse_int_list(args.model_seeds),
+        test_size=args.test_size,
+        valid_fraction_of_trainval=args.valid_fraction_of_trainval,
+        encoding_mode=args.encoding_mode,
+        batch_size=args.batch_size,
+        epochs=args.epochs,
+        patience=args.patience,
+        lr=args.lr,
+        weight_decay=args.weight_decay,
+        grad_clip=args.grad_clip,
+        max_len=args.max_len,
+        embedding_dim=args.embedding_dim,
+        channels=args.channels,
+        dropout=args.dropout,
+        kernel_sizes=parse_int_list(args.kernel_sizes),
+        hidden_dim=args.hidden_dim,
+        loss=args.loss,
+        device=args.device,
+        high_pce_threshold=args.high_pce_threshold,
+    )
+    save_json(out / "environment.json", environment_report())
+    fd, fa, y = load_arrays(args.fd_path, args.fa_path, args.y_path)
+    seq, encoding_audit, vocab_size = encode_fptand(fd, fa, cfg.max_len, cfg.encoding_mode)
+    encoding_audit.to_csv(out / "encoding_audit.csv", index=False, encoding="utf-8-sig")
+    save_json(out / "encoding_summary.json", {
+        "encoding_mode": cfg.encoding_mode,
+        "vocab_size": vocab_size,
+        "max_len": cfg.max_len,
+        "n_samples": int(len(seq)),
+        "truncated_n": int(encoding_audit["truncated"].sum()),
+        "truncated_fraction": float(encoding_audit["truncated"].mean()),
+        "total_donor_tokens_dropped": int(encoding_audit["donor_tokens_dropped"].sum()),
+        "total_acceptor_tokens_dropped": int(encoding_audit["acceptor_tokens_dropped"].sum()),
+    })
+    if args.group_path:
+        groups = np.asarray(np.load(args.group_path)).reshape(-1)
+        if len(groups) != len(y):
+            raise ValueError(f"group-path length {len(groups)} does not match n={len(y)}")
+    else:
+        groups = factorize_hashes(paired_row_hashes(fd, fa))
+    split = make_split(fd, fa, y, groups, cfg, args.precomputed_split)
+    group_audit = validate_group_disjoint(split, groups)
+    np.savez_compressed(out / "split_indices.npz", **split)
+    save_json(out / "split_audit.json", {
+        "split_method": cfg.split_method,
+        "target_values_used_to_construct_split": cfg.split_method == "hspxy_legacy",
+        "representation_group_path": args.group_path,
+        "counts": {name: int(len(split[f"{name}_idx"])) for name in ["train", "valid", "test"]},
+        **group_audit,
+    })
+    if args.metadata_csv:
+        meta = pd.read_csv(args.metadata_csv)
+        if len(meta) != len(y):
+            raise ValueError("metadata row count does not match arrays")
+        meta.to_csv(out / "sample_metadata.csv", index=False, encoding="utf-8-sig")
+
+    runs = [train_one_seed(seq, y, split, cfg, vocab_size, seed, out) for seed in cfg.model_seeds]
+    best = min(runs, key=lambda x: (x["best_valid_rmse"], x["model_seed"]))
+    pred_matrix = np.column_stack([r["test_pred"] for r in runs])
+    ensemble_pred = pred_matrix.mean(axis=1)
+    ensemble_metrics = regression_metrics(best["test_true"], ensemble_pred)
+    residual_table(best["test_true"], ensemble_pred, split["test_idx"]).to_csv(
+        out / "ensemble_predictions.csv", index=False, encoding="utf-8-sig"
+    )
+    ranking_metrics(best["test_true"], ensemble_pred, high_threshold=cfg.high_pce_threshold).to_csv(
+        out / "ensemble_ranking_metrics.csv", index=False, encoding="utf-8-sig"
+    )
+    stratified_error_table(best["test_true"], ensemble_pred).to_csv(
+        out / "ensemble_pce_stratified_errors.csv", index=False, encoding="utf-8-sig"
+    )
+    rows = []
+    for r in runs:
+        rows.append({
+            "model_seed": r["model_seed"],
+            "best_valid_rmse": r["best_valid_rmse"],
+            **{f"valid_{k}": v for k, v in r["valid_metrics"].items()},
+            **{f"test_{k}": v for k, v in r["test_metrics"].items()},
+        })
+    pd.DataFrame(rows).to_csv(out / "per_seed_summary.csv", index=False, encoding="utf-8-sig")
+    summary = {
+        "config": asdict(cfg),
+        "n_samples_total": int(len(y)),
+        "n_train": int(len(split["train_idx"])),
+        "n_valid": int(len(split["valid_idx"])),
+        "n_test": int(len(split["test_idx"])),
+        "best_single_model_seed": int(best["model_seed"]),
+        "selection_criterion": "lowest validation RMSE",
+        "best_single_test_metrics": best["test_metrics"],
+        "ensemble_test_metrics": ensemble_metrics,
+        "target_values_used_to_construct_split": cfg.split_method == "hspxy_legacy",
+        "identical_encoded_representations_kept_in_one_subset": True,
     }
-    if any(overlaps.values()):
-        raise ValueError(f"Representation groups cross split boundaries: {overlaps}")
-    return overlaps
+    save_json(out / "run_summary.json", summary)
+    print(json.dumps(summary, indent=2))
 
 
-def save_json(path: str | Path, obj: Any) -> None:
-    Path(path).write_text(json.dumps(obj, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
-
-
-def environment_report() -> dict[str, Any]:
-    report: dict[str, Any] = {
-        "python": sys.version,
-        "platform": platform.platform(),
-        "executable": sys.executable,
-        "cwd": os.getcwd(),
-    }
-    for name in ["numpy", "pandas", "scipy", "sklearn", "rdkit", "torch", "shap", "joblib", "matplotlib"]:
-        try:
-            module = __import__(name)
-            report[name] = getattr(module, "__version__", "unknown")
-        except Exception as exc:  # pragma: no cover
-            report[name] = f"not available: {exc}"
-    return report
+if __name__ == "__main__":
+    main()
