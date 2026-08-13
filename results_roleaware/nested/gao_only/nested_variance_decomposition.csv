@@ -1,0 +1,9 @@
+﻿metric,between_split_variance_of_split_means,mean_within_split_model_seed_variance,total_individual_run_variance,between_fraction_of_between_plus_within,interpretation
+r,0.0028136023651939733,0.00047741007979169435,0.002973643053579521,0.8549351946331599,between=partition sensitivity; within=training stochasticity conditional on a fixed partition
+spearman_rho,0.003070343865727437,0.0005868850156825034,0.00329879335887826,0.8395274032025454,between=partition sensitivity; within=training stochasticity conditional on a fixed partition
+r2,0.007991626830990618,0.0009610762724169538,0.00812380118961747,0.8926495985272705,between=partition sensitivity; within=training stochasticity conditional on a fixed partition
+rmse,0.01803118035637725,0.002132646890339293,0.018300183503072404,0.8942340229240671,between=partition sensitivity; within=training stochasticity conditional on a fixed partition
+mae,0.008404850082019443,0.0020634436799963902,0.009403183691647556,0.8028863416611799,between=partition sensitivity; within=training stochasticity conditional on a fixed partition
+mean_signed_error,0.024353143465960278,0.025599572239499862,0.04326274174588177,0.48752391380591803,between=partition sensitivity; within=training stochasticity conditional on a fixed partition
+calibration_intercept,0.24321149886775448,0.057812386417396625,0.27055128379071053,0.8079475110002229,between=partition sensitivity; within=training stochasticity conditional on a fixed partition
+calibration_slope,0.01802694758545881,0.003785029042943186,0.01964517965435457,0.826470149522598,between=partition sensitivity; within=training stochasticity conditional on a fixed partition

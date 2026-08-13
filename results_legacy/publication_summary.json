@@ -1,0 +1,86 @@
+{
+  "fixed_config": "C:\\Users\\Administrator\\Desktop\\八大修改\\config_fixed_structure_only_legacy.json",
+  "nested_config": null,
+  "fixed": {
+    "gao_only": {
+      "best_single_model_seed": 8,
+      "selection_rule": "lowest validation RMSE",
+      "best_single_metrics": {
+        "r": 0.7124305848434481,
+        "spearman_rho": 0.7100079844511011,
+        "r2": 0.4534878762816831,
+        "rmse": 1.8307043381169255,
+        "mae": 1.4405171038217355,
+        "mean_signed_error": -0.5630547092513782,
+        "calibration_intercept": 0.3299272595499142,
+        "calibration_slope": 1.0733874855950507
+      },
+      "ensemble_metrics": {
+        "r": 0.7284307873600132,
+        "spearman_rho": 0.7311741049429616,
+        "r2": 0.47910903273763095,
+        "rmse": 1.7872764112905606,
+        "mae": 1.4474194413995516,
+        "mean_signed_error": -0.2944322101239426,
+        "calibration_intercept": -0.9501031112326426,
+        "calibration_slope": 1.361228303078132
+      },
+      "test_index_hash": "69d9cd1c5cab74a1ee0947a7a30f043dffa4b8c4df14befba638d1ecaf65a9fa",
+      "n_repeated_prediction_groups_12dp": 7
+    },
+    "inhouse_r2": {
+      "best_single_model_seed": 70,
+      "selection_rule": "lowest validation RMSE",
+      "best_single_metrics": {
+        "r": 0.6485654409190281,
+        "spearman_rho": 0.6153957436853997,
+        "r2": 0.40905029104476565,
+        "rmse": 2.2910803345388726,
+        "mae": 1.777119833272654,
+        "mean_signed_error": -0.06842332119708294,
+        "calibration_intercept": 1.4654786783190117,
+        "calibration_slope": 0.8604735523796573
+      },
+      "ensemble_metrics": {
+        "r": 0.6513432489384119,
+        "spearman_rho": 0.6344508672892517,
+        "r2": 0.4222378534361192,
+        "rmse": 2.265372365207749,
+        "mae": 1.733158300443426,
+        "mean_signed_error": 0.10332791196798966,
+        "calibration_intercept": 0.32259637760507265,
+        "calibration_slope": 0.958179521273734
+      },
+      "test_index_hash": "576c448f60e948a68b87749ab6de7b2d4463c1ee15274b19157ecd2c7dcc281e",
+      "n_repeated_prediction_groups_12dp": 9
+    },
+    "joint_inhouse_gao": {
+      "best_single_model_seed": 92,
+      "selection_rule": "lowest validation RMSE",
+      "best_single_metrics": {
+        "r": 0.8275207434720379,
+        "spearman_rho": 0.7971500293576442,
+        "r2": 0.6704020252089279,
+        "rmse": 2.3177631096507394,
+        "mae": 1.6509007652699947,
+        "mean_signed_error": 0.1252609263360501,
+        "calibration_intercept": 0.8698095935454394,
+        "calibration_slope": 0.8771769728940433
+      },
+      "ensemble_metrics": {
+        "r": 0.833456241561382,
+        "spearman_rho": 0.8014732170115608,
+        "r2": 0.6889680790106057,
+        "rmse": 2.2515378919725397,
+        "mae": 1.6373951000909108,
+        "mean_signed_error": 0.03189945305146211,
+        "calibration_intercept": 0.6289121475536693,
+        "calibration_slope": 0.9174841544996863
+      },
+      "test_index_hash": "09c99904222d489b37a1cafa783e71b99055deba43ef662b065c31b198b5f103",
+      "n_repeated_prediction_groups_12dp": 17
+    }
+  },
+  "nested": null,
+  "primary_performance_recommendation": "Use nested split-ensemble mean, SD and empirical percentile range as the realistic internal-performance estimate; treat the fixed split as a common-test comparison benchmark."
+}

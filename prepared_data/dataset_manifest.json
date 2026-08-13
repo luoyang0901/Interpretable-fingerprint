@@ -1,0 +1,79 @@
+{
+  "radius": 2,
+  "n_bits": 1024,
+  "max_len": 200,
+  "inhouse_parent_n": 836,
+  "excluded_requested_n": 121,
+  "excluded_matched_n": 121,
+  "inhouse_after_exclusion_n": 715,
+  "gao_n": 535,
+  "joint_n": 1250,
+  "cross_source_exact_group_counts": {
+    "acceptor_fingerprint": 2
+  },
+  "all_identical_group_counts": {
+    "acceptor_fingerprint": 78,
+    "donor_fingerprint": 98,
+    "legacy_truncated_sequence": 49,
+    "paired_fingerprint": 49,
+    "role_aware_truncated_sequence": 49
+  },
+  "near_similarity_summary": {
+    "nearest_similarity_distributions": {
+      "donor_similarity": {
+        "n": 1250,
+        "mean": 0.38060734251737594,
+        "sd": 0.12810821123521826,
+        "p2_5": 0.13333509154617787,
+        "p25": 0.29411765933036804,
+        "median": 0.380952388048172,
+        "p75": 0.46236559748649597,
+        "p97_5": 0.6319350227713576,
+        "min": 0.07446808367967606,
+        "max": 0.7945205569267273
+      },
+      "acceptor_similarity": {
+        "n": 1250,
+        "mean": 0.4349303379163146,
+        "sd": 0.2997281896087691,
+        "p2_5": 0.03947368264198303,
+        "p25": 0.14606741070747375,
+        "median": 0.4112149477005005,
+        "p75": 0.6877454072237015,
+        "p97_5": 1.0,
+        "min": 0.010204081423580647,
+        "max": 1.0
+      },
+      "paired_similarity": {
+        "n": 1250,
+        "mean": 0.40776884028315546,
+        "sd": 0.14797986919329925,
+        "p2_5": 0.14442460015416145,
+        "p25": 0.28908924758434296,
+        "median": 0.4166666716337204,
+        "p75": 0.5210505723953247,
+        "p97_5": 0.6995945855975149,
+        "min": 0.07101888954639435,
+        "max": 0.7611939907073975
+      }
+    },
+    "counts_at_or_above_threshold": {
+      "0.9": {
+        "donor_similarity": 0,
+        "acceptor_similarity": 88,
+        "paired_similarity": 0
+      },
+      "0.95": {
+        "donor_similarity": 0,
+        "acceptor_similarity": 83,
+        "paired_similarity": 0
+      },
+      "0.99": {
+        "donor_similarity": 0,
+        "acceptor_similarity": 77,
+        "paired_similarity": 0
+      }
+    }
+  },
+  "identical_representations_must_be_grouped_during_splitting": true
+}

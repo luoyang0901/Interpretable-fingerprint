@@ -1,0 +1,5 @@
+﻿encoding_mode,source,n,truncated_n,truncated_fraction,mean_donor_active_bits,mean_acceptor_active_bits,mean_donor_tokens_retained,mean_acceptor_tokens_retained,total_donor_tokens_dropped,total_acceptor_tokens_dropped
+legacy,Gao,535,0,0.0,64.2373831775701,35.98317757009346,64.2373831775701,35.98317757009346,0,0
+legacy,in-house,715,0,0.0,67.48251748251748,72.11328671328671,67.48251748251748,72.11328671328671,0,0
+role_aware,Gao,535,0,0.0,64.2373831775701,35.98317757009346,64.2373831775701,35.98317757009346,0,0
+role_aware,in-house,715,0,0.0,67.48251748251748,72.11328671328671,67.48251748251748,72.11328671328671,0,0

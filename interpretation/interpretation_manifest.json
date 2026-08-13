@@ -1,0 +1,17 @@
+{
+  "pipeline": "C:\\Users\\Administrator\\Desktop\\八大修改\\baseline\\interpretation_pipeline.joblib",
+  "model_name": "RandomForest",
+  "model_selection_status": "pre-specified interpretation model; not selected using the test set",
+  "feature_selection_fitted_on": "training subset only",
+  "interpretation_model_training_data": "no-augmentation training subset only",
+  "shap_explainer": "shap.TreeExplainer with interventional perturbation",
+  "reference_data": "random subset of the training set",
+  "background_seed": 2026,
+  "background_size": 200,
+  "explained_scope": "test",
+  "n_explained_samples": 143,
+  "feature_selection_rule_for_all_downstream_interpretation": "Top 10 by mean absolute SHAP",
+  "fingerprint_indexing": "feature names are zero-based; display indices are explicitly archived as one-based",
+  "correlation_samples": "all structure-resolved parent pairs",
+  "back_mapping_samples": "all unique donor or acceptor molecules in the structure-resolved parent dataset"
+}
