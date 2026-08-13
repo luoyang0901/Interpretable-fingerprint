@@ -1,6 +1,6 @@
 # Interpretable, Leakage-Controlled Fingerprint Prediction of Organic Solar-Cell Donor-Acceptor Pair Efficiency
 
-This repository contains the complete revised analysis workflow, processed inputs, exact split definitions, leakage/collision audits, model outputs, interpretation archives, figure source data, and graphical abstract supporting the manuscript:
+This repository contains the complete revised analysis workflow, processed inputs, exact split definitions, leakage/collision audits, model outputs, interpretation archives, and figure source data supporting the manuscript:
 
 **Interpretable, Leakage-Controlled Fingerprint Prediction of Organic Solar-Cell Donor-Acceptor Pair Efficiency with External Fingerprint-Only Data Integration**
 
@@ -80,7 +80,6 @@ strict scaffold test       role-aware TextCNN
 ├── 04_shap_interpretation.py
 ├── 05_export_split_indices.py
 ├── 06_aggregation_sensitivity.py
-├── make_graphical_abstract.py
 │
 ├── config_fixed_structure_only_roleaware.json
 ├── config_fixed_structure_only_legacy.json
@@ -97,7 +96,7 @@ strict scaffold test       role-aware TextCNN
 ├── results_roleaware/
 ├── results_legacy/
 ├── interpretation/
-├── figures_roleaware/
+└── figures_roleaware/
 ```
 
 See `DATA_DESCRIPTION.md` for file-level interpretation.
@@ -319,14 +318,6 @@ python 03_make_submission_figures.py \
   --summary-dir results_roleaware \
   --output-dir figures_roleaware
 ```
-
-### 11. Generate graphical abstract / TOC image
-
-```bash
-python make_graphical_abstract.py
-```
-
-The corrected graphical abstract is archived in PNG, PDF, and SVG form under `graphical_abstract/`. It deliberately avoids the unsupported phrase **"Tests generalization"** and instead distinguishes **internal prediction** from **limited scaffold extrapolation**.
 
 ### One-command workflows
 
