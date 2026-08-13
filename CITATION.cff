@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use this repository, please cite the associated manuscript."
+title: "Interpretable, Leakage-Controlled Fingerprint Prediction of Organic Solar-Cell Donor-Acceptor Pair Efficiency with External Fingerprint-Only Data Integration"
+version: "2.0-review-revision"
+date-released: 2026-08-13
+url: "https://github.com/luoyang0901/Interpretable-fingerprint"
+authors:
+  - family-names: "Zhang"
+    given-names: "Zhongyu"
+  - family-names: "Zhou"
+    given-names: "Bao"
+  - family-names: "Li"
+    given-names: "Jinxiao"
+  - family-names: "Xie"
+    given-names: "Zaixin"
+  - family-names: "Duan"
+    given-names: "Zhuoqi"
+  - family-names: "Hu"
+    given-names: "Yongmao"

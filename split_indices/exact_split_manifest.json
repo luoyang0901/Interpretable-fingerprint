@@ -1,0 +1,546 @@
+{
+  "purpose": "Exact human-readable and NumPy train/validation/test partition archive for the revised manuscript",
+  "target_values_used_for_partition_construction": false,
+  "baseline": {
+    "source": "archived completed-run baseline/split_indices.npz",
+    "parent_n": 836,
+    "counts": {
+      "development_train": 500,
+      "development_validation": 72,
+      "development_fixed_test": 143,
+      "scaffold_disjoint_holdout": 20,
+      "scaffold_overlap_quarantine": 101
+    },
+    "csv": "baseline_parent_split_assignments.csv",
+    "npz": "baseline_fixed_split_indices.npz"
+  },
+  "fixed_roleaware": {
+    "gao_only": {
+      "split_method": "target-blind structure-only Kennard-Stone-like group split",
+      "split_seed": 12,
+      "n": 535,
+      "counts": {
+        "train": 375,
+        "valid": 53,
+        "test": 107
+      },
+      "group_overlap_audit": {
+        "train_valid_group_overlap": 0,
+        "train_test_group_overlap": 0,
+        "valid_test_group_overlap": 0
+      },
+      "fixed_test_verified_against_archived_ensemble_predictions": true,
+      "csv": "gao_only_fixed_split_assignments.csv",
+      "npz": "gao_only_fixed_split_indices.npz"
+    },
+    "inhouse_r2": {
+      "split_method": "target-blind structure-only Kennard-Stone-like group split",
+      "split_seed": 12,
+      "n": 715,
+      "counts": {
+        "train": 501,
+        "valid": 71,
+        "test": 143
+      },
+      "group_overlap_audit": {
+        "train_valid_group_overlap": 0,
+        "train_test_group_overlap": 0,
+        "valid_test_group_overlap": 0
+      },
+      "fixed_test_verified_against_archived_ensemble_predictions": true,
+      "csv": "inhouse_r2_fixed_split_assignments.csv",
+      "npz": "inhouse_r2_fixed_split_indices.npz"
+    },
+    "joint_inhouse_gao": {
+      "split_method": "target-blind structure-only Kennard-Stone-like group split",
+      "split_seed": 12,
+      "n": 1250,
+      "counts": {
+        "train": 875,
+        "valid": 125,
+        "test": 250
+      },
+      "group_overlap_audit": {
+        "train_valid_group_overlap": 0,
+        "train_test_group_overlap": 0,
+        "valid_test_group_overlap": 0
+      },
+      "fixed_test_verified_against_archived_ensemble_predictions": true,
+      "csv": "joint_inhouse_gao_fixed_split_assignments.csv",
+      "npz": "joint_inhouse_gao_fixed_split_indices.npz"
+    }
+  },
+  "nested_roleaware": {
+    "gao_only": {
+      "split_method": "target-blind random group split",
+      "split_seeds": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "model_seeds_per_split": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "n": 535,
+      "per_seed": [
+        {
+          "split_seed": 0,
+          "counts": {
+            "train": 379,
+            "valid": 52,
+            "test": 104
+          },
+          "group_overlap_audit": {
+            "train_valid_group_overlap": 0,
+            "train_test_group_overlap": 0,
+            "valid_test_group_overlap": 0
+          }
+        },
+        {
+          "split_seed": 1,
+          "counts": {
+            "train": 379,
+            "valid": 51,
+            "test": 105
+          },
+          "group_overlap_audit": {
+            "train_valid_group_overlap": 0,
+            "train_test_group_overlap": 0,
+            "valid_test_group_overlap": 0
+          }
+        },
+        {
+          "split_seed": 2,
+          "counts": {
+            "train": 375,
+            "valid": 52,
+            "test": 108
+          },
+          "group_overlap_audit": {
+            "train_valid_group_overlap": 0,
+            "train_test_group_overlap": 0,
+            "valid_test_group_overlap": 0
+          }
+        },
+        {
+          "split_seed": 3,
+          "counts": {
+            "train": 374,
+            "valid": 54,
+            "test": 107
+          },
+          "group_overlap_audit": {
+            "train_valid_group_overlap": 0,
+            "train_test_group_overlap": 0,
+            "valid_test_group_overlap": 0
+          }
+        },
+        {
+          "split_seed": 4,
+          "counts": {
+            "train": 374,
+            "valid": 54,
+            "test": 107
+          },
+          "group_overlap_audit": {
+            "train_valid_group_overlap": 0,
+            "train_test_group_overlap": 0,
+            "valid_test_group_overlap": 0
+          }
+        },
+        {
+          "split_seed": 5,
+          "counts": {
+            "train": 375,
+            "valid": 54,
+            "test": 106
+          },
+          "group_overlap_audit": {
+            "train_valid_group_overlap": 0,
+            "train_test_group_overlap": 0,
+            "valid_test_group_overlap": 0
+          }
+        },
+        {
+          "split_seed": 6,
+          "counts": {
+            "train": 375,
+            "valid": 52,
+            "test": 108
+          },
+          "group_overlap_audit": {
+            "train_valid_group_overlap": 0,
+            "train_test_group_overlap": 0,
+            "valid_test_group_overlap": 0
+          }
+        },
+        {
+          "split_seed": 7,
+          "counts": {
+            "train": 377,
+            "valid": 54,
+            "test": 104
+          },
+          "group_overlap_audit": {
+            "train_valid_group_overlap": 0,
+            "train_test_group_overlap": 0,
+            "valid_test_group_overlap": 0
+          }
+        },
+        {
+          "split_seed": 8,
+          "counts": {
+            "train": 374,
+            "valid": 54,
+            "test": 107
+          },
+          "group_overlap_audit": {
+            "train_valid_group_overlap": 0,
+            "train_test_group_overlap": 0,
+            "valid_test_group_overlap": 0
+          }
+        },
+        {
+          "split_seed": 9,
+          "counts": {
+            "train": 378,
+            "valid": 53,
+            "test": 104
+          },
+          "group_overlap_audit": {
+            "train_valid_group_overlap": 0,
+            "train_test_group_overlap": 0,
+            "valid_test_group_overlap": 0
+          }
+        }
+      ],
+      "csv": "gao_only_nested_split_assignments.csv",
+      "npz": "gao_only_nested_split_indices.npz"
+    },
+    "inhouse_r2": {
+      "split_method": "target-blind random group split",
+      "split_seeds": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "model_seeds_per_split": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "n": 715,
+      "per_seed": [
+        {
+          "split_seed": 0,
+          "counts": {
+            "train": 501,
+            "valid": 71,
+            "test": 143
+          },
+          "group_overlap_audit": {
+            "train_valid_group_overlap": 0,
+            "train_test_group_overlap": 0,
+            "valid_test_group_overlap": 0
+          }
+        },
+        {
+          "split_seed": 1,
+          "counts": {
+            "train": 501,
+            "valid": 73,
+            "test": 141
+          },
+          "group_overlap_audit": {
+            "train_valid_group_overlap": 0,
+            "train_test_group_overlap": 0,
+            "valid_test_group_overlap": 0
+          }
+        },
+        {
+          "split_seed": 2,
+          "counts": {
+            "train": 496,
+            "valid": 72,
+            "test": 147
+          },
+          "group_overlap_audit": {
+            "train_valid_group_overlap": 0,
+            "train_test_group_overlap": 0,
+            "valid_test_group_overlap": 0
+          }
+        },
+        {
+          "split_seed": 3,
+          "counts": {
+            "train": 503,
+            "valid": 70,
+            "test": 142
+          },
+          "group_overlap_audit": {
+            "train_valid_group_overlap": 0,
+            "train_test_group_overlap": 0,
+            "valid_test_group_overlap": 0
+          }
+        },
+        {
+          "split_seed": 4,
+          "counts": {
+            "train": 500,
+            "valid": 71,
+            "test": 144
+          },
+          "group_overlap_audit": {
+            "train_valid_group_overlap": 0,
+            "train_test_group_overlap": 0,
+            "valid_test_group_overlap": 0
+          }
+        },
+        {
+          "split_seed": 5,
+          "counts": {
+            "train": 498,
+            "valid": 70,
+            "test": 147
+          },
+          "group_overlap_audit": {
+            "train_valid_group_overlap": 0,
+            "train_test_group_overlap": 0,
+            "valid_test_group_overlap": 0
+          }
+        },
+        {
+          "split_seed": 6,
+          "counts": {
+            "train": 493,
+            "valid": 71,
+            "test": 151
+          },
+          "group_overlap_audit": {
+            "train_valid_group_overlap": 0,
+            "train_test_group_overlap": 0,
+            "valid_test_group_overlap": 0
+          }
+        },
+        {
+          "split_seed": 7,
+          "counts": {
+            "train": 502,
+            "valid": 74,
+            "test": 139
+          },
+          "group_overlap_audit": {
+            "train_valid_group_overlap": 0,
+            "train_test_group_overlap": 0,
+            "valid_test_group_overlap": 0
+          }
+        },
+        {
+          "split_seed": 8,
+          "counts": {
+            "train": 499,
+            "valid": 73,
+            "test": 143
+          },
+          "group_overlap_audit": {
+            "train_valid_group_overlap": 0,
+            "train_test_group_overlap": 0,
+            "valid_test_group_overlap": 0
+          }
+        },
+        {
+          "split_seed": 9,
+          "counts": {
+            "train": 498,
+            "valid": 72,
+            "test": 145
+          },
+          "group_overlap_audit": {
+            "train_valid_group_overlap": 0,
+            "train_test_group_overlap": 0,
+            "valid_test_group_overlap": 0
+          }
+        }
+      ],
+      "csv": "inhouse_r2_nested_split_assignments.csv",
+      "npz": "inhouse_r2_nested_split_indices.npz"
+    },
+    "joint_inhouse_gao": {
+      "split_method": "target-blind random group split",
+      "split_seeds": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "model_seeds_per_split": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "n": 1250,
+      "per_seed": [
+        {
+          "split_seed": 0,
+          "counts": {
+            "train": 870,
+            "valid": 125,
+            "test": 255
+          },
+          "group_overlap_audit": {
+            "train_valid_group_overlap": 0,
+            "train_test_group_overlap": 0,
+            "valid_test_group_overlap": 0
+          }
+        },
+        {
+          "split_seed": 1,
+          "counts": {
+            "train": 879,
+            "valid": 126,
+            "test": 245
+          },
+          "group_overlap_audit": {
+            "train_valid_group_overlap": 0,
+            "train_test_group_overlap": 0,
+            "valid_test_group_overlap": 0
+          }
+        },
+        {
+          "split_seed": 2,
+          "counts": {
+            "train": 869,
+            "valid": 131,
+            "test": 250
+          },
+          "group_overlap_audit": {
+            "train_valid_group_overlap": 0,
+            "train_test_group_overlap": 0,
+            "valid_test_group_overlap": 0
+          }
+        },
+        {
+          "split_seed": 3,
+          "counts": {
+            "train": 878,
+            "valid": 124,
+            "test": 248
+          },
+          "group_overlap_audit": {
+            "train_valid_group_overlap": 0,
+            "train_test_group_overlap": 0,
+            "valid_test_group_overlap": 0
+          }
+        },
+        {
+          "split_seed": 4,
+          "counts": {
+            "train": 867,
+            "valid": 129,
+            "test": 254
+          },
+          "group_overlap_audit": {
+            "train_valid_group_overlap": 0,
+            "train_test_group_overlap": 0,
+            "valid_test_group_overlap": 0
+          }
+        },
+        {
+          "split_seed": 5,
+          "counts": {
+            "train": 872,
+            "valid": 123,
+            "test": 255
+          },
+          "group_overlap_audit": {
+            "train_valid_group_overlap": 0,
+            "train_test_group_overlap": 0,
+            "valid_test_group_overlap": 0
+          }
+        },
+        {
+          "split_seed": 6,
+          "counts": {
+            "train": 867,
+            "valid": 129,
+            "test": 254
+          },
+          "group_overlap_audit": {
+            "train_valid_group_overlap": 0,
+            "train_test_group_overlap": 0,
+            "valid_test_group_overlap": 0
+          }
+        },
+        {
+          "split_seed": 7,
+          "counts": {
+            "train": 881,
+            "valid": 123,
+            "test": 246
+          },
+          "group_overlap_audit": {
+            "train_valid_group_overlap": 0,
+            "train_test_group_overlap": 0,
+            "valid_test_group_overlap": 0
+          }
+        },
+        {
+          "split_seed": 8,
+          "counts": {
+            "train": 877,
+            "valid": 122,
+            "test": 251
+          },
+          "group_overlap_audit": {
+            "train_valid_group_overlap": 0,
+            "train_test_group_overlap": 0,
+            "valid_test_group_overlap": 0
+          }
+        },
+        {
+          "split_seed": 9,
+          "counts": {
+            "train": 876,
+            "valid": 123,
+            "test": 251
+          },
+          "group_overlap_audit": {
+            "train_valid_group_overlap": 0,
+            "train_test_group_overlap": 0,
+            "valid_test_group_overlap": 0
+          }
+        }
+      ],
+      "csv": "joint_inhouse_gao_nested_split_assignments.csv",
+      "npz": "joint_inhouse_gao_nested_split_indices.npz"
+    }
+  }
+}

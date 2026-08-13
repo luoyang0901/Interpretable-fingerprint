@@ -1,0 +1,12 @@
+# Exact package versions reported by RUN_ENVIRONMENT.json for the completed manuscript run.
+# The original PyTorch build was 2.11.0+cu126 on Windows; install the CUDA 12.6 build
+# from the official PyTorch channel/index when exact GPU reproduction is required.
+numpy==2.4.6
+pandas==3.0.5
+scipy==1.17.1
+scikit-learn==1.9.0
+rdkit==2026.3.4
+torch==2.11.0
+shap==0.51.0
+joblib==1.5.3
+matplotlib==3.11.1
