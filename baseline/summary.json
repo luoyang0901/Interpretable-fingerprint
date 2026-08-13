@@ -1,0 +1,63 @@
+{
+  "config": {
+    "da_csv": "data/D-A_utf8.csv",
+    "output_dir": "baseline",
+    "aggregation_rule": "maximum",
+    "scaffold_test_size": 20,
+    "scaffold_seed": 42,
+    "fixed_split_seed": 12,
+    "radius": 3,
+    "n_bits": 1024,
+    "mi_k": 600,
+    "test_size": 0.2,
+    "valid_fraction_of_trainval": 0.125,
+    "bootstrap_repeats": 2000,
+    "high_pce_threshold": 16.0,
+    "run_nested_baseline": true,
+    "nested_split_seeds": "0,1,2,3,4,5,6,7,8,9",
+    "nested_model_seeds": "0,1,2,3,4"
+  },
+  "n_structure_available_records": 1076,
+  "n_unique_parent_pairs": 836,
+  "n_scaffold_disjoint_test": 20,
+  "n_scaffold_quarantine": 101,
+  "n_development": 715,
+  "fixed_split_counts": {
+    "train": 500,
+    "valid": 72,
+    "test": 143
+  },
+  "fixed_best_model_selected_by_validation_rmse": "RandomForest",
+  "fixed_best_model_metrics": {
+    "r": 0.6257465790829096,
+    "spearman_rho": 0.6021659279374362,
+    "r2": 0.36548397630089446,
+    "rmse": 2.1759817751991415,
+    "mae": 1.5759869661028698,
+    "mean_signed_error": 0.2053226667283616,
+    "calibration_intercept": 1.7557022441602053,
+    "calibration_slope": 0.8140704728373087
+  },
+  "fixed_random_forest_metrics": {
+    "r": 0.6257465790829096,
+    "spearman_rho": 0.6021659279374362,
+    "r2": 0.36548397630089446,
+    "rmse": 2.1759817751991415,
+    "mae": 1.5759869661028698,
+    "mean_signed_error": 0.2053226667283616,
+    "calibration_intercept": 1.7557022441602053,
+    "calibration_slope": 0.8140704728373087
+  },
+  "scaffold_disjoint_random_forest_metrics": {
+    "r": 0.20366398488790102,
+    "spearman_rho": 0.2045112781954887,
+    "r2": -0.08775655110034597,
+    "rmse": 2.688708339697453,
+    "mae": 2.2966377244773493,
+    "mean_signed_error": -0.6026324145684552,
+    "calibration_intercept": 5.2568146496295505,
+    "calibration_slope": 0.427168235528371
+  },
+  "interpretation_model": "no-augmentation RandomForest",
+  "target_values_used_for_fixed_split": false
+}

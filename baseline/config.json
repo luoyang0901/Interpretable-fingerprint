@@ -1,0 +1,18 @@
+{
+  "da_csv": "data/D-A_utf8.csv",
+  "output_dir": "baseline",
+  "aggregation_rule": "maximum",
+  "scaffold_test_size": 20,
+  "scaffold_seed": 42,
+  "fixed_split_seed": 12,
+  "radius": 3,
+  "n_bits": 1024,
+  "mi_k": 600,
+  "test_size": 0.2,
+  "valid_fraction_of_trainval": 0.125,
+  "bootstrap_repeats": 2000,
+  "high_pce_threshold": 16.0,
+  "run_nested_baseline": true,
+  "nested_split_seeds": "0,1,2,3,4,5,6,7,8,9",
+  "nested_model_seeds": "0,1,2,3,4"
+}

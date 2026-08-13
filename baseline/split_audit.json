@@ -1,0 +1,17 @@
+{
+  "split_method": "target-blind structure-only Kennard-Stone-like group split",
+  "identical_pair_fingerprint_groups_kept_together": true,
+  "train_valid_group_overlap": 0,
+  "train_test_group_overlap": 0,
+  "valid_test_group_overlap": 0,
+  "counts": {
+    "train_idx": 500,
+    "valid_idx": 72,
+    "test_idx": 143
+  },
+  "scaffold_test_n": 20,
+  "quarantine_n": 101,
+  "development_n": 715,
+  "donor_scaffold_overlap_test_vs_development": 0,
+  "acceptor_scaffold_overlap_test_vs_development": 0
+}

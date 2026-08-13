@@ -1,0 +1,15 @@
+{
+  "raw_records_n": 915,
+  "unique_pairs_n": 715,
+  "aggregation_rules": [
+    "maximum",
+    "mean",
+    "median"
+  ],
+  "same_pair_identities_and_same_target_blind_split": true,
+  "model_selection": "validation RMSE only",
+  "test_set_used_for_model_selection": false,
+  "mutual_information_fitted_on": "training subset within each aggregation rule",
+  "split_seed": 12,
+  "model_seed": 12
+}
