@@ -1,0 +1,7 @@
+﻿scope,representation,groups,affected_samples,heterogeneous_label_groups,max_within_group_PCE_range_percentage_points,notes
+cross_source,donor_fingerprint,0,0,,,No exact cross-source donor-fingerprint overlap.
+cross_source,acceptor_fingerprint,2,77,,,Two exact cross-source groups; group sizes 42 and 35.
+cross_source,complete_paired_fingerprint,0,0,,,No exact cross-source complete paired-fingerprint overlap.
+cross_source,legacy_complete_sequence,0,0,,,No exact cross-source legacy-sequence overlap.
+cross_source,role_aware_complete_sequence,0,0,,,No exact cross-source role-aware-sequence overlap.
+within_source_duplicate,complete_paired_fingerprint,49,111,48,6.52,Duplicate complete paired-representation groups retained and kept within a single partition.
