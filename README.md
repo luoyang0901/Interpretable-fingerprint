@@ -49,10 +49,12 @@ strict scaffold test       role-aware TextCNN
 - The role-aware 101-model joint TextCNN ensemble achieved **r = 0.8326, Spearman rho = 0.7993, R² = 0.6872, RMSE = 2.2578, MAE = 1.6266** on the fixed target-blind joint test set.
 - Across ten target-blind split-specific five-model ensembles, the joint branch gave **r = 0.8364 ± 0.0193, R² = 0.6963 ± 0.0337, RMSE = 2.2628 ± 0.1527, MAE = 1.7282 ± 0.1002**.
 - Partition choice contributes more variability than model initialization for the principal predictive metrics.
-- Exact overlap/collision auditing found **no cross-source exact duplicate complete paired fingerprint or complete sequence representation**. Two cross-source exact-overlap groups occur only at the acceptor-fingerprint level.
-- **49 complete paired-representation groups (111 samples)** are duplicated within sources; 48 contain heterogeneous PCE labels. These groups are kept intact across train/validation/test boundaries.
+- Exact overlap/collision auditing found **0 donor-fingerprint cross-source groups**, **2 acceptor-fingerprint cross-source groups involving 77 samples**, and **0 cross-source groups** for the complete paired fingerprint, legacy sequence, or role-aware sequence.
+- **49 complete paired-representation groups (111 samples)** are duplicated within sources; 48 contain heterogeneous PCE labels, with a maximum within-group PCE range of **6.52 percentage points**. These groups are kept intact across train/validation/test boundaries.
 - No FPtand sequence is truncated at `max_len = 200`. The role-aware representation uses disjoint donor/acceptor token namespaces and a separator.
+- A separate prediction-integrity audit found **17 repeated 101-model prediction-vector groups involving 37 joint fixed-test samples**; every group had identical complete model inputs. There were **0 duplicate sample/source/seed keys, 0 duplicate ensemble rows, and 0 metadata-merge mismatches**, so no prediction-table merging error was detected.
 - SHAP interpretation is restricted to the structure-resolved radius-3 Random Forest and uses one predefined top-10-by-mean-|SHAP| rule consistently for feature ranking, correlation analysis, and mapped-environment interpretation.
+- Fingerprint bit indices are reported **zero based throughout** the revised manuscript, Supporting Information, and interpretation tables.
 
 ## Repository structure
 
@@ -151,6 +153,8 @@ The fixed TextCNN partitions are reconstructed deterministically from the archiv
 | Joint in-house + Gao | 875 | 125 | 250 | 0 |
 
 For all three branches, the regenerated fixed test indices were checked against the completed-run `ensemble_predictions.csv` tables and **matched exactly**.
+
+The Gao-only fixed branch trains on **375** records (53 validation, 107 test) with a **608,129-trainable-parameter** role-aware TextCNN. This is treated as a controlled internal benchmark, not evidence that 535 total records are generally sufficient for TextCNN or deep learning. No formal learning-curve/sample-size sensitivity analysis was performed.
 
 Files:
 
