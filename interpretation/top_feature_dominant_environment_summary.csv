@@ -1,0 +1,11 @@
+﻿feature_name_zero_based,molecular_side,bit_index_zero_based,shap_rank,environment_smiles,environment_occurrence_count,unique_molecule_support,n_unique_input_molecules,n_unique_molecules_with_bit,n_total_bit_environment_occurrences,n_distinct_mapped_environments,n_pair_level_activations,mean_absolute_shap
+fa_531,acceptor,531,1,c1cccc(c1C(=O)C)C,229,116,468,122,244,4,338,0.327604342978293
+fa_536,acceptor,536,2,C(=C(C)C)c(c)s,114,58,468,73,149,8,122,0.2594290673695502
+fd_723,donor,723,3,c(-c)(c)c,543,207,250,230,792,5,783,0.1905129206007305
+fa_764,acceptor,764,4,C(=C(C(=C)c)C(=O)c)c(sc)c(C)c,67,35,468,37,71,2,84,0.1116625605421853
+fa_984,acceptor,984,5,c(cc)c(c)C,484,127,468,132,503,5,349,0.1025244851010823
+fd_527,donor,527,6,c(c(F)c)c(-c)s,55,32,250,37,62,4,154,0.1010350921235229
+fa_523,acceptor,523,7,C1(=C(C#N)C#N)C(=Cc)C(=O)c(c)c1cc,375,208,468,212,390,6,339,0.0961028057473158
+fa_416,acceptor,416,8,c(c)(c)n,186,57,468,65,206,7,116,0.0953082283774137
+fd_372,donor,372,9,c(F)(cc)c(C)s,34,18,250,24,44,6,132,0.0951761786908778
+fa_584,acceptor,584,10,c(cc)(c(c)C)C(=C)C,400,212,468,217,414,3,327,0.0773070236518454

@@ -1,0 +1,11 @@
+﻿selected_model_input_position,original_feature_index_zero_based,feature_name_zero_based,mean_absolute_shap,rank_by_mean_absolute_shap,selection_rule
+449,1555,fa_531,0.327604342978293,1,Top 10 by mean absolute SHAP from the predefined no-augmentation RandomForest
+451,1560,fa_536,0.2594290673695502,2,Top 10 by mean absolute SHAP from the predefined no-augmentation RandomForest
+206,723,fd_723,0.1905129206007305,3,Top 10 by mean absolute SHAP from the predefined no-augmentation RandomForest
+520,1788,fa_764,0.1116625605421853,4,Top 10 by mean absolute SHAP from the predefined no-augmentation RandomForest
+591,2008,fa_984,0.1025244851010823,5,Top 10 by mean absolute SHAP from the predefined no-augmentation RandomForest
+147,527,fd_527,0.1010350921235229,6,Top 10 by mean absolute SHAP from the predefined no-augmentation RandomForest
+446,1547,fa_523,0.0961028057473158,7,Top 10 by mean absolute SHAP from the predefined no-augmentation RandomForest
+416,1440,fa_416,0.0953082283774137,8,Top 10 by mean absolute SHAP from the predefined no-augmentation RandomForest
+99,372,fd_372,0.0951761786908778,9,Top 10 by mean absolute SHAP from the predefined no-augmentation RandomForest
+466,1608,fa_584,0.0773070236518454,10,Top 10 by mean absolute SHAP from the predefined no-augmentation RandomForest
